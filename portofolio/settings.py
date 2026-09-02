@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 from pathlib import Path
 
 import os
+
 from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
@@ -30,7 +31,7 @@ SECRET_KEY = 'django-insecure-x#n+p01^hu7&&6h_vzvu)v9!^f$5#9skohir8-^ba29_$#^-jm
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["*"]
 
 PRODUCTION = os.getenv('PRODUCTION', 'False').lower() == 'true'
 
@@ -137,6 +138,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+
 
 
 # Email
