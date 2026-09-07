@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m 'feat: sync About Me data and add Education section *)",
+      "Bash(git reset *)",
+      "Bash(cat /tmp/runserver.log)",
+      "Read(//private/tmp/**)",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s -o /tmp/page.html -w \"%{http_code}\\\\n\" http://127.0.0.1:8765/)",
+      "Bash(pkill -f \"runserver 8765\")",
+      "Bash(git commit *)",
+      "Bash(git ls-remote *)",
+      "Bash(cat /tmp/runserver2.log)",
+      "Bash(git fetch *)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git revert *)",
+      "Bash(git push *)",
+      "Bash(git restore *)"
+    ]
+  }
+}
