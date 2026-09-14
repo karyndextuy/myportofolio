@@ -44,3 +44,13 @@ class Education(models.Model):
     @property
     def is_ongoing(self):
         return self.ended_at is None
+
+
+class Hobby(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100)
+    icon = models.CharField(max_length=10)
+    description = models.CharField(max_length=255, blank=True)
+
+    def __str__(self):
+        return self.name

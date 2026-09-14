@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Education - {{ name }}</title>
+    <title>Hobbies - {{ name }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -33,26 +33,23 @@
     </header>
 
     <main>
-        <section class="list-page" id="education">
+        <section class="list-page" id="hobbies">
             <div class="container">
-                <p class="section-kicker">Riwayat pendidikan saya</p>
-                <h1>Education</h1>
+                <p class="section-kicker">Di luar layar dan kode</p>
+                <h1>Hobbies</h1>
 
-                <div class="timeline">
-                    {% for edu in education_list %}
-                        <article class="timeline-item">
-                            <div class="timeline-content">
-                                <span class="timeline-year">
-                                    {{ edu.started_at|date:"Y" }} &ndash;
-                                    {% if edu.is_ongoing %}Sekarang{% else %}{{ edu.ended_at|date:"Y" }}{% endif %}
-                                </span>
-                                <h3>{{ edu.institution }}</h3>
-                                <p>{{ edu.description }}</p>
-                            </div>
+                <div class="hobbies-grid">
+                    {% for hobby in hobby_list %}
+                        <article class="hobby-card">
+                            <span class="hobby-icon" aria-hidden="true">{{ hobby.icon }}</span>
+                            <h3>{{ hobby.name }}</h3>
+                            {% if hobby.description %}
+                                <p class="hobby-description">{{ hobby.description }}</p>
+                            {% endif %}
                         </article>
                     {% empty %}
                         <p class="empty-state">
-                            Belum ada riwayat pendidikan yang ditambahkan.
+                            Belum ada hobi yang ditambahkan.
                         </p>
                     {% endfor %}
                 </div>

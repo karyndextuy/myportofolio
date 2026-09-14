@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from main.models import Experience, Education
+from main.models import Experience, Education, Hobby
 
 
 class MainTest(TestCase):
@@ -92,3 +92,30 @@ class EducationTest(TestCase):
 
         self.assertFalse(self.education.is_ongoing)
         self.assertNotContains(response, "Sekarang")
+
+
+class HobbyTest(TestCase):
+    def setUp(self):
+        self.hobby = Hobby.objects.create(
+            name="Cycling",
+            icon="\U0001F6B4",
+            description="Menikmati akhir pekan dengan bersepeda santai keliling kota.",
+        )
+
+    def test_hobbies_url_is_accessible(self):
+        response = self.client.get(reverse("main:show_hobbies"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "hobbies.html")
+
+    def test_hobbies_page_shows_data(self):
+        response = self.client.get(reverse("main:show_hobbies"))
+
+        self.assertContains(response, self.hobby.name)
+        self.assertContains(response, self.hobby.description)
+
+    def test_empty_hobbies_page(self):
+        Hobby.objects.all().delete()
+        response = self.client.get(reverse("main:show_hobbies"))
+
+        self.assertContains(response, "Belum ada hobi yang ditambahkan.")

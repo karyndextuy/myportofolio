@@ -501,3 +501,8 @@ h1, .brand {
     margin: 0.4rem 0 1.5rem;
     font-size: 2rem;
 }
+
+.hobby-description {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
