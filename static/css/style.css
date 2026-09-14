@@ -248,17 +248,6 @@ h1, .brand {
     border-top: 1px solid var(--line);
 }
 
-.section-title {
-    font-family: "Space Grotesk", -apple-system, sans-serif;
-    font-size: 1.9rem;
-    margin-bottom: 2rem;
-}
-
-.education {
-    padding: 3.5rem 0;
-    border-top: 1px solid var(--line);
-}
-
 .timeline {
     position: relative;
     display: flex;
@@ -314,55 +303,6 @@ h1, .brand {
 .timeline-content p {
     color: var(--text-muted);
     font-size: 0.9rem;
-}
-
-.experience {
-    padding: 3.5rem 0;
-    border-top: 1px solid var(--line);
-}
-
-.experience-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 1.5rem;
-}
-
-.exp-card {
-    background-color: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 1.5rem;
-    border-top: 3px solid var(--accent);
-    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease;
-}
-
-.exp-card:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 10px 24px rgba(28, 25, 23, 0.1);
-}
-
-.exp-year {
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--accent-dark);
-    font-weight: 700;
-}
-
-.exp-card h3 {
-    font-family: "Space Grotesk", -apple-system, sans-serif;
-    margin: 0.5rem 0 0.25rem;
-    font-size: 1.15rem;
-}
-
-.exp-role {
-    color: var(--text-muted);
-    font-size: 0.9rem;
-}
-
-.hobbies {
-    padding: 3.5rem 0 4.5rem;
-    border-top: 1px solid var(--line);
 }
 
 .hobbies-grid {
@@ -490,4 +430,19 @@ h1, .brand {
     margin-top: 1rem;
     font-size: 0.85rem;
     font-weight: 600;
+}
+
+.list-page {
+    padding: 4rem 0;
+    border-top: 1px solid var(--line);
+}
+
+.list-page h1 {
+    margin: 0.4rem 0 1.5rem;
+    font-size: 2rem;
+}
+
+.hobby-description {
+    color: var(--text-muted);
+    font-size: 0.85rem;
 }
