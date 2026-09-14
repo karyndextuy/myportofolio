@@ -8,12 +8,14 @@ Class: PBP A
 
 ## About This Project
 
-A personal portfolio website built on top of a Django project. As of Assignment 1, the "About Me" page is still pure HTML5 + CSS3 (no database or MVT architecture yet) and includes:
+A personal portfolio website built with Django, following the MVT (Model-View-Template) pattern. It has four pages, each backed by its own model/view/template and reachable from the navbar:
 
-- **Profile** - name, NPM, photo, and a short bio.
-- **Education** - education history laid out as a timeline.
-- **Experience** - organizational/committee experience as a card grid.
-- **Hobbies** - everyday hobbies as an icon grid.
+- **Profile** (`/`) - name, NPM, photo, and a short bio.
+- **Education** (`/education/`) - education history as a timeline, pulled from the `Education` model.
+- **Experience** (`/experience/`) - organizational/committee experience as a card grid, pulled from the `Experience` model.
+- **Hobbies** (`/hobbies/`) - everyday hobbies as an icon grid, pulled from the `Hobby` model.
+
+Every list page shows its data with a Django Template Language `{% for %}` loop and falls back to an empty-state message when there's no data yet - nothing in those lists is hardcoded in the HTML.
 
 ## Running the Project
 
@@ -40,6 +42,12 @@ A personal portfolio website built on top of a Django project. As of Assignment 
 - Added three new sections for Assignment 1: Education (timeline), Experience (card grid), and Hobbies (icon grid), each with its own CSS rules (Flexbox/Grid layout, hover effects).
 - Fixed a couple of Django config bugs found while testing locally that were breaking the site (`TEMPLATES` dirs pointing nowhere caused a 500 error, and a missing `STATICFILES_DIRS` was causing the CSS/image to 404).
 
+### Tutorial & Assignment 2
+- Implemented the MVT pattern: created the `main` app, an `Experience` model, and pinned Django to `~=5.2` for PWS/PostgreSQL compatibility.
+- Moved the profile data (name, NPM, program, bio) from hardcoded HTML into view context (`show_main`), and built a database-backed Experience page (`show_experience`, `/experience/`) with a `{% for %}` loop and an empty-state message. Added 6 unit tests covering the profile page, the experience page, the model, and a 404 case.
+- For Assignment 2, applied the same MVT pattern to two more sections: added `Education` and `Hobby` models, `show_education`/`show_hobbies` views, and their own pages at `/education/` and `/hobbies/`, each reachable from the navbar via `{% url %}` and backed by 7 more unit tests (3-4 per page: accessible + correct template, data shown, empty state).
+- Removed the old hardcoded Education/Experience/Hobbies sections from the profile page (`index.html`) now that each has its own database-backed page, and cleaned up the CSS rules that were only used by those removed sections.
+
 ## Reflection Questions
 
 ### Assignment 1
@@ -50,6 +58,14 @@ A personal portfolio website built on top of a Django project. As of Assignment 
 
 3. Since all the content (education history, experience, hobbies) is hardcoded directly into the HTML, any small change - adding one more organization, for example - means editing the markup and redeploying instead of just filling out a form or admin panel. There's also no structured storage for the data (e.g. to filter projects/skills by technology), and the contact "form" is still just a `mailto:` link since there's no database to store incoming messages. For the next iteration, I'd like to move Education, Experience, and eventually Projects/Skills into Django models (ORM + database) so they can be managed through the Django admin without touching the HTML every time, and eventually add things like a project filter or a contact form that actually persists submissions.
 
+### Assignment 2
+
+1. When a user opens a page like `/education/`, the browser sends a GET request that first hits `portofolio/urls.py` (the project-level URLconf). There, the empty prefix `""` is routed with `include("main.urls")`, handing the rest of the path to `main/urls.py` (the app-level URLconf), which matches `"education/"` to the `show_education` view. That view is the only place allowed to talk to the `Education` model - it calls `Education.objects.all()` to get every row currently in the database, puts the result into a context dictionary along with `name`, and calls `render(request, "education.html", context)`. Django's template engine then loads `education.html`, replaces `{{ name }}`, and loops over `education_list` with `{% for edu in education_list %}` to expand one `<article>` per row (or shows the `{% empty %}` message if there are none), and the resulting HTML is sent back as the response. So: `urls.py` (project) narrows the request down to an app, `urls.py` (app) narrows it down to a view, the view is the only layer that touches the `Model`, and the `Template` is the only layer that decides how that data is displayed - each layer only needs to know about the one right next to it.
+
+2. Storing this data in a model instead of writing it into the template means the content and the presentation are no longer welded together. Adding a new education entry or hobby becomes "create one row" (through the Django admin, a script, or a form later on) instead of editing and redeploying a template file, and the same `{% for %}` loop picks it up automatically without anyone touching HTML. It also means the data can be validated by field type, ordered (like `ordering = ['-started_at']` on `Education`), queried, or reused across multiple pages consistently, and a typo or formatting fix only has to happen once, in the data, instead of in every hardcoded copy scattered through the templates. This is also why removing the old hardcoded Education/Experience/Hobbies sections from the profile page was safe once their DB-backed pages existed - the actual data now lives in one place (the database), not duplicated between `index.html` and the new pages.
+
+3. `makemigrations` compares the current state of `models.py` against the last known state (recorded in the `migrations/` folder) and writes a new migration file describing what changed - it only generates instructions, it never touches the actual database. `migrate` is the step that applies those instructions to the database, creating or altering tables so they match the models. A concrete example from this assignment: after adding the `Education` and `Hobby` classes to `main/models.py`, running `python manage.py makemigrations` generated `main/migrations/0002_education_hobby.py` (a file describing "create these two new tables with these fields") - but the corresponding tables did not exist in `db.sqlite3` yet at that point. Only after running `python manage.py migrate` did Django actually create them, which is what made `Education.objects.create(...)` and `Hobby.objects.create(...)` in the shell work without errors.
+
 ## AI Usage
 
-I used an AI coding assistant (Claude Code) to help write the HTML markup and CSS for the new sections (Education, Experience, Hobbies), and to help debug two Django configuration issues found while testing the site locally (`TEMPLATES` dirs and `STATICFILES_DIRS` misconfiguration that broke the page and the static files). All content in the sections (education history, experience, hobbies, contact info) and the reflection answers above are my own.
+I used an AI coding assistant (Claude Code) to help write the HTML markup and CSS for the new sections (Education, Experience, Hobbies), to help debug two Django configuration issues found while testing the site locally (`TEMPLATES` dirs and `STATICFILES_DIRS` misconfiguration that broke the page and the static files), and to help implement the MVT layer for Assignment 2 (the `main` app, the `Experience`/`Education`/`Hobby` models, views, templates, and unit tests). All content in the sections (education history, experience, hobbies, contact info) and the reflection answers above are my own.
