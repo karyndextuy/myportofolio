@@ -491,3 +491,13 @@ h1, .brand {
     font-size: 0.85rem;
     font-weight: 600;
 }
+
+.list-page {
+    padding: 4rem 0;
+    border-top: 1px solid var(--line);
+}
+
+.list-page h1 {
+    margin: 0.4rem 0 1.5rem;
+    font-size: 2rem;
+}
