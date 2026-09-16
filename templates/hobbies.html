@@ -1,37 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% extends "base.html" %}
+{% block meta %}
     <title>Hobbies - {{ name }}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/style.css">
-</head>
-<body>
-    <header class="site-header">
-        <div class="container">
-            <a href="{% url 'main:show_main' %}" class="brand">{{ name }}</a>
-            <div class="header-controls">
-                <nav>
-                    <a href="{% url 'main:show_main' %}">Profile</a>
-                    <a href="{% url 'main:show_education' %}">Education</a>
-                    <a href="{% url 'main:show_experience' %}">Experience</a>
-                    <a href="{% url 'main:show_hobbies' %}">Hobbies</a>
-                </nav>
-                <div class="theme-toggle-wrap">
-                    <input type="checkbox" id="theme-toggle" class="theme-toggle-input">
-                    <label for="theme-toggle" class="theme-toggle-label" aria-label="Toggle dark mode">
-                        <span class="theme-toggle-icon" aria-hidden="true">&#9728;</span>
-                        <span class="theme-toggle-ball"></span>
-                        <span class="theme-toggle-icon" aria-hidden="true">&#9789;</span>
-                    </label>
-                </div>
-            </div>
-        </div>
-    </header>
-
+{% endblock meta %}
+{% block content %}
     <main>
         <section class="list-page" id="hobbies">
             <div class="container">
@@ -56,11 +27,4 @@
             </div>
         </section>
     </main>
-
-    <footer class="site-footer">
-        <div class="container">
-            <p>&copy; 2026 {{ name }}. Fakultas Ilmu Komputer, Universitas Indonesia.</p>
-        </div>
-    </footer>
-</body>
-</html>
+{% endblock content %}
