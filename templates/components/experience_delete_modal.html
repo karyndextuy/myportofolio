@@ -8,19 +8,19 @@
     </button>
 </p>
 <div id="delete-experience-{{ experience.id }}"
-     class="experience-delete-modal"
+     class="delete-modal"
      popover="auto"
      role="dialog"
      aria-modal="true"
      aria-labelledby="delete-experience-title-{{ experience.id }}">
     <button type="button"
-            class="experience-delete-modal__backdrop"
+            class="delete-modal__backdrop"
             popovertarget="delete-experience-{{ experience.id }}"
             popovertargetaction="hide"
             aria-label="Tutup konfirmasi hapus"></button>
-    <div class="experience-delete-modal__content">
+    <div class="delete-modal__content">
         <button type="button"
-                class="experience-delete-modal__close"
+                class="delete-modal__close"
                 popovertarget="delete-experience-{{ experience.id }}"
                 popovertargetaction="hide"
                 aria-label="Tutup konfirmasi hapus">&times;</button>
@@ -29,7 +29,7 @@
             Apakah Anda yakin ingin menghapus
             <strong>{{ experience.title }}</strong>?
         </p>
-        <div class="experience-delete-modal__actions">
+        <div class="delete-modal__actions">
             <button type="button"
                     class="button button-secondary"
                     popovertarget="delete-experience-{{ experience.id }}"
