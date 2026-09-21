@@ -34,6 +34,7 @@ class Education(models.Model):
     description = models.CharField(max_length=255, blank=True)
     started_at = models.DateField()
     ended_at = models.DateField(blank=True, null=True)
+    certificate_url = models.URLField(blank=True, null=True)
 
     class Meta:
         ordering = ['-started_at']

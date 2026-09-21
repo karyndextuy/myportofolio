@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block meta %}
-    <title>Add Experience - {{ name }}</title>
+    <title>{{ page_title }} - {{ name }}</title>
 {% endblock meta %}
 {% block content %}
     <main>
-        <section class="experience-section">
+        <section class="list-page">
             <div class="container">
-                <h1>Add New Experience</h1>
+                <h1>{{ page_title }}</h1>
                 <form method="post"
-                      action="{% url 'main:create_experience' %}"
+                      action="{% if education %}{% url 'main:update_education' education.id %}{% else %}{% url 'main:create_education' %}{% endif %}"
                       class="data-form">
                     {% csrf_token %}
                     {% for field in form %}
@@ -20,8 +20,10 @@
                             {% endfor %}
                         </div>
                     {% endfor %}
-                    <button type="submit" class="button">Tambah Pengalaman</button>
-                    <a href="{% url 'main:show_experience' %}" class="button button-secondary">Batal</a>
+                    <button type="submit" class="button">
+                        {% if education %}Simpan Perubahan{% else %}Tambah Pendidikan{% endif %}
+                    </button>
+                    <a href="{% url 'main:show_education' %}" class="button button-secondary">Batal</a>
                 </form>
             </div>
         </section>

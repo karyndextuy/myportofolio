@@ -3,7 +3,7 @@ from django.core import serializers
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from main.forms import ExperienceForm
+from main.forms import ExperienceForm, EducationForm
 from main.models import Experience, Education, Hobby
 
 
@@ -39,9 +39,18 @@ def show_experience(request):
 
 
 def show_education(request):
+    json_response = get_education_json(request)
+    education_list = serializers.deserialize(
+        "json",
+        json_response.content.decode("utf-8"),
+    )
+    education_list = [education.object for education in education_list]
+    institution_query = request.GET.get("institution", "").strip()
+
     context = {
         "name": "Karyn Isabelle Dexter",
-        "education_list": Education.objects.all(),
+        "education_list": education_list,
+        "institution_query": institution_query,
     }
     return render(request, "education.html", context)
 
@@ -89,3 +98,59 @@ def delete_experience(request, experience_id):
         return redirect("main:show_experience")
 
     return redirect("main:show_experience")
+
+
+def create_education(request):
+    form = EducationForm(request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Riwayat pendidikan baru berhasil ditambahkan!")
+        return redirect("main:show_education")
+
+    context = {
+        "name": "Karyn Isabelle Dexter",
+        "form": form,
+        "page_title": "Add Education",
+    }
+    return render(request, "education_form.html", context)
+
+
+def update_education(request, education_id):
+    education = get_object_or_404(Education, pk=education_id)
+    form = EducationForm(request.POST or None, instance=education)
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Riwayat pendidikan berhasil diperbarui!")
+        return redirect("main:show_education")
+
+    context = {
+        "name": "Karyn Isabelle Dexter",
+        "form": form,
+        "page_title": "Edit Education",
+        "education": education,
+    }
+    return render(request, "education_form.html", context)
+
+
+def get_education_json(request):
+    institution_query = request.GET.get("institution", "").strip()
+    education = Education.objects.all()
+
+    if institution_query:
+        education = education.filter(institution__icontains=institution_query)
+
+    education_json = serializers.serialize("json", education)
+    return HttpResponse(education_json, content_type="application/json")
+
+
+def delete_education(request, education_id):
+    education = get_object_or_404(Education, pk=education_id)
+
+    if request.method == "POST":
+        education.delete()
+        messages.success(request, "Riwayat pendidikan berhasil dihapus!")
+        return redirect("main:show_education")
+
+    return redirect("main:show_education")

@@ -7,7 +7,24 @@
         <section class="list-page" id="education">
             <div class="container">
                 <p class="section-kicker">Riwayat pendidikan saya</p>
-                <h1>Education</h1>
+                <div class="section-header">
+                    <h1>Education</h1>
+                    <a href="{% url 'main:create_education' %}" class="button section-add-button">
+                        <span aria-hidden="true">+</span>
+                        Tambah Pendidikan
+                    </a>
+                </div>
+                <form method="get"
+                      action="{% url 'main:show_education' %}"
+                      class="search-bar">
+                    <input type="search"
+                           name="institution"
+                           value="{{ institution_query }}"
+                           placeholder="Cari berdasarkan nama institusi"
+                           class="search-bar__input"
+                           aria-label="Cari berdasarkan nama institusi">
+                    <button type="submit" class="button">Cari</button>
+                </form>
 
                 <div class="timeline">
                     {% for edu in education_list %}
@@ -19,12 +36,25 @@
                                 </span>
                                 <h3>{{ edu.institution }}</h3>
                                 <p>{{ edu.description }}</p>
+                                {% if edu.certificate_url %}
+                                    <p class="experience-status">
+                                        <a href="{{ edu.certificate_url }}" target="_blank" rel="noopener">Lihat Sertifikat</a>
+                                    </p>
+                                {% endif %}
+                                <div class="item-actions">
+                                    <a href="{% url 'main:update_education' edu.id %}" class="button button-secondary">Edit</a>
+                                    {% include "components/education_delete_modal.html" with edu=edu %}
+                                </div>
                             </div>
                         </article>
                     {% empty %}
-                        <p class="empty-state">
-                            Belum ada riwayat pendidikan yang ditambahkan.
-                        </p>
+                        {% if institution_query %}
+                            <p class="empty-state">Tidak ada riwayat pendidikan dengan institusi tersebut.</p>
+                        {% else %}
+                            <p class="empty-state">
+                                Belum ada riwayat pendidikan yang ditambahkan.
+                            </p>
+                        {% endif %}
                     {% endfor %}
                 </div>
             </div>

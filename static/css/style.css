@@ -447,8 +447,8 @@ h1, .brand {
     font-size: 0.85rem;
 }
 
-/* experience form & data delivery */
-.experience-form {
+/* shared create/update form styling */
+.data-form {
     width: 100%;
     max-width: 100%;
     margin-top: 1.5rem;
@@ -513,7 +513,8 @@ h1, .brand {
     background: #b42318;
 }
 
-.experience-header {
+/* shared across every section that has add/search/edit/delete (Experience, Education, ...) */
+.section-header {
     width: 100%;
     display: flex;
     justify-content: space-between;
@@ -522,28 +523,28 @@ h1, .brand {
     margin: 0.4rem 0 1.5rem;
 }
 
-.experience-header h1 {
+.section-header h1 {
     margin: 0;
 }
 
-.experience-add-button {
+.section-add-button {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
 }
 
-.experience-add-button span {
+.section-add-button span {
     font-size: 1.25rem;
     line-height: 1;
 }
 
-.experience-search {
+.search-bar {
     display: flex;
     gap: 0.75rem;
     margin-bottom: 1.5rem;
 }
 
-.experience-search__input {
+.search-bar__input {
     width: 100%;
     min-width: 0;
     padding: 0.7rem;
@@ -554,9 +555,30 @@ h1, .brand {
     font: inherit;
 }
 
-.experience-search__input:focus {
+.search-bar__input:focus {
     outline: 2px solid var(--accent);
     border-color: var(--accent);
+}
+
+.card-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: auto;
+    padding-top: 1rem;
+}
+
+.card-actions .experience-status {
+    margin-top: 0;
+}
+
+.item-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
 }
 
 .experience-card {
@@ -573,20 +595,7 @@ h1, .brand {
     border-radius: var(--radius);
 }
 
-.experience-card-actions {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 1rem;
-    margin-top: auto;
-    padding-top: 1rem;
-}
-
-.experience-card-actions .experience-status {
-    margin-top: 0;
-}
-
-.experience-delete-modal {
+.delete-modal {
     display: none;
     position: fixed;
     inset: 0;
@@ -603,11 +612,11 @@ h1, .brand {
     justify-content: center;
 }
 
-.experience-delete-modal:popover-open {
+.delete-modal:popover-open {
     display: flex;
 }
 
-.experience-delete-modal__backdrop {
+.delete-modal__backdrop {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -618,7 +627,7 @@ h1, .brand {
     cursor: default;
 }
 
-.experience-delete-modal__content {
+.delete-modal__content {
     position: relative;
     z-index: 1;
     width: min(100%, 480px);
@@ -629,13 +638,13 @@ h1, .brand {
     box-shadow: 0 1rem 3rem rgba(28, 25, 23, 0.22);
 }
 
-.experience-delete-modal__content h2 {
+.delete-modal__content h2 {
     margin: 0 0 0.75rem;
     font-family: "Space Grotesk", -apple-system, sans-serif;
     font-size: 1.5rem;
 }
 
-.experience-delete-modal__close {
+.delete-modal__close {
     position: absolute;
     top: 1rem;
     right: 1rem;
@@ -648,7 +657,7 @@ h1, .brand {
     cursor: pointer;
 }
 
-.experience-delete-modal__actions {
+.delete-modal__actions {
     display: flex;
     justify-content: flex-end;
     gap: 0.75rem;
@@ -656,40 +665,40 @@ h1, .brand {
 }
 
 @media (max-width: 600px) {
-    .experience-header {
+    .section-header {
         align-items: flex-start;
         flex-direction: column;
     }
 
-    .experience-add-button {
+    .section-add-button {
         width: 100%;
         justify-content: center;
     }
 
-    .experience-search {
+    .search-bar {
         flex-direction: column;
     }
 
-    .experience-search .button {
+    .search-bar .button {
         width: 100%;
     }
 
-    .experience-delete-modal {
+    .delete-modal {
         align-items: flex-end;
         padding: 0;
     }
 
-    .experience-delete-modal__content {
+    .delete-modal__content {
         width: 100%;
         padding: 1.25rem;
         border-radius: var(--radius) var(--radius) 0 0;
     }
 
-    .experience-delete-modal__actions {
+    .delete-modal__actions {
         flex-direction: column-reverse;
     }
 
-    .experience-delete-modal__actions .button {
+    .delete-modal__actions .button {
         width: 100%;
         text-align: center;
     }

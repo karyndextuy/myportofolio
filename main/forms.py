@@ -1,6 +1,6 @@
-from django.forms import ModelForm, TextInput, Textarea, URLInput, Select, DateTimeInput
+from django.forms import ModelForm, TextInput, Textarea, URLInput, Select, DateTimeInput, DateInput
 
-from main.models import Experience
+from main.models import Experience, Education
 
 
 class ExperienceForm(ModelForm):
@@ -45,5 +45,55 @@ class ExperienceForm(ModelForm):
                 attrs={
                     "type": "datetime-local",
                 },
+            ),
+        }
+
+
+class EducationForm(ModelForm):
+    class Meta:
+        model = Education
+        fields = [
+            "institution",
+            "description",
+            "started_at",
+            "ended_at",
+            "certificate_url",
+        ]
+
+        labels = {
+            "institution": "Institusi",
+            "description": "Deskripsi",
+            "started_at": "Tanggal Mulai",
+            "ended_at": "Tanggal Selesai",
+            "certificate_url": "URL Sertifikat/Ijazah",
+        }
+
+        widgets = {
+            "institution": TextInput(
+                attrs={
+                    "placeholder": "Universitas Indonesia",
+                    "maxlength": 255,
+                }
+            ),
+            "description": TextInput(
+                attrs={
+                    "placeholder": "S1 Sistem Informasi, Fakultas Ilmu Komputer",
+                    "maxlength": 255,
+                }
+            ),
+            "started_at": DateInput(
+                attrs={
+                    "type": "date",
+                },
+            ),
+            "ended_at": DateInput(
+                attrs={
+                    "type": "date",
+                },
+            ),
+            "certificate_url": URLInput(
+                attrs={
+                    "placeholder": "https://drive.google.com/thumbnail?id=...&sz=w1000",
+                }
             ),
         }
