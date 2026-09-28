@@ -8,14 +8,22 @@ Class: PBP A
 
 ## About This Project
 
-A personal portfolio website built with Django, following the MVT (Model-View-Template) pattern. It has four pages, each backed by its own model/view/template and reachable from the navbar:
+A personal portfolio website built with Django, following the MVT (Model-View-Template) pattern. Every page is backed by its own model/view/template and reachable from the navbar:
 
-- **Profile** (`/`) - name, NPM, photo, and a short bio.
-- **Education** (`/education/`) - education history as a timeline, pulled from the `Education` model.
-- **Experience** (`/experience/`) - organizational/committee experience as a card grid, pulled from the `Experience` model.
-- **Hobbies** (`/hobbies/`) - everyday hobbies as an icon grid, pulled from the `Hobby` model.
+- **Profile** (`/`) - name, NPM, photo, a short bio, and the time of the visitor's last login (read from the `last_login` cookie).
+- **Education** (`/education/`) - education history as a timeline, with create/update/delete, a JSON endpoint (`/api/education/`), and a star button.
+- **Experience** (`/experience/`) - organizational/committee experience as a card grid, with create/delete and a JSON endpoint (`/api/experience/`).
+- **Projects** (`/projects/`) - projects as a card grid, with create/delete, a JSON endpoint (`/api/projects/`), and a star button.
+- **Hobbies** (`/hobbies/`) - everyday hobbies as an icon grid.
 
-Every list page shows its data with a Django Template Language `{% for %}` loop and falls back to an empty-state message when there's no data yet - nothing in those lists is hardcoded in the HTML.
+Visitors can register, log in, and log out using Django's built-in authentication. Every page stays readable without an account; what a user can *change* depends on their role:
+
+| Role | Read pages | Star / unstar | Update Education | Create / delete data |
+|---|:---:|:---:|:---:|:---:|
+| Visitor (not logged in) | Yes | Redirected to login | Redirected to login | Redirected to login |
+| Registered user | Yes | Yes | 403 Forbidden | 403 Forbidden |
+| Editor (member of the `Editor` group) | Yes | Yes | Yes | 403 Forbidden |
+| Portfolio owner (superuser) | Yes | Yes | Yes | Yes |
 
 ## Running the Project
 
@@ -29,11 +37,33 @@ Every list page shows its data with a Django Template Language `{% for %}` loop 
    ```
    pip install -r requirements.txt
    ```
-4. Run the development server:
+4. Apply the migrations (this also creates the `Editor` group automatically):
+   ```
+   python manage.py migrate
+   ```
+5. Create the portfolio owner account:
+   ```
+   python manage.py createsuperuser
+   ```
+6. Run the development server:
    ```
    python manage.py runserver
    ```
-5. Open `http://127.0.0.1:8000/` in your browser.
+7. Open `http://127.0.0.1:8000/` in your browser.
+
+### Making someone an Editor
+
+1. Let the person register a normal account at `/register/`.
+2. Log in to `/admin/` with the superuser account.
+3. Open **Users**, pick that account, move **Editor** into *Chosen groups*, and click **Save**.
+
+The next time that person loads a page, the navbar shows an `EDITOR` badge next to their username and the Education page shows the **Edit** button (but not **Tambah Pendidikan** or **Hapus**).
+
+### Running the tests
+
+```
+python manage.py test
+```
 
 ## Weekly Progress
 
@@ -55,6 +85,25 @@ Every list page shows its data with a Django Template Language `{% for %}` loop 
 ### Tugas 3
 - Applied the same Create/Delete/JSON pattern to the `Education` section, and additionally implemented **Update**: `EducationForm` (`main/forms.py`), a shared `education_form.html` used for both `/education/add/` and `/education/<id>/edit/` (the edit view fetches the row by its UUID with `get_object_or_404` and binds the form to that `instance` before saving), a delete button per timeline entry, and a `/api/education/` JSON endpoint (`get_education_json`, filterable by `?institution=`) that `show_education` now reads and deserializes before rendering the timeline.
 - Refactored the CSS/markup that Tutorial 3 had written specifically for Experience (`.experience-header`, `.experience-search`, `.experience-delete-modal`, ...) into generic, reusable classes (`.section-header`, `.search-bar`, `.delete-modal`, `.card-actions`/`.item-actions`, `.data-form`) shared by both the Experience and Education pages, since both sections now have an identical add/search/edit/delete UI shape.
+
+### Tutorial 4
+- Added registration (`UserCreationForm`), login (`AuthenticationForm`), and logout using Django's built-in `User` model, plus a navbar that shows the logged-in username or the Login/Register links.
+- On login, a `last_login` cookie is set with `set_cookie()` and shown on the profile page as "Sesi Terakhir Login"; on logout it is removed with `delete_cookie()`.
+- Added the `Project` section that the tutorial builds on (model, `ProjectForm`, list page, add form, delete popover, `/api/projects/`), locked create/delete behind `@login_required` + an `is_superuser` check, and hid those buttons from everyone else.
+- Added a `starred_by` `ManyToManyField` to `Project`, a POST-only `toggle_star` view, and a star button showing the count and whether the current user has starred it. `/api/projects/` now uses `use_natural_foreign_keys=True` so it shows usernames instead of internal user ids.
+- Changed `TIME_ZONE` from `UTC` to `Asia/Jakarta`, because `datetime.now()` in the `last_login` cookie was 7 hours behind WIB.
+
+### Tugas 4
+- **Editor role.** An `Editor` group is created by a data migration (`main/migrations/0006_create_editor_group.py`), so it exists on every database (local and PWS); the owner assigns accounts to it from Django Admin. The rules for every role live in one place, `main/roles.py` (`is_editor`, `can_create`, `can_update`, `can_delete`), instead of being repeated in every view.
+- **Server-side checks.** `create_education`, `update_education`, and `delete_education` use `@login_required(login_url="/login/")`, so a visitor is redirected to the login page, then raise `PermissionDenied` (HTTP 403) when the role is not allowed: only the owner can create/delete, while the owner and Editors can update. The Experience create/delete views were locked the same way, since before this anyone could use them without an account.
+- **Hidden controls.** A context processor (`main/context_processors.py`) makes `is_editor` available in every template, so `education.html` can use `{% if user.is_superuser or is_editor %}` for the Edit button and `{% if user.is_superuser %}` for Add/Delete. These checks are only cosmetic; the views above are what actually block the request.
+- **Star.** `Education` got a `starred_by = ManyToManyField(User)` (migration `0007`), a POST-only `toggle_star_education` view protected by `{% csrf_token %}`, and a star component that shows the total count, whether the current user has starred the entry (Star/Unstar, colour, `aria-pressed`), and who starred it (tooltip). Because it is a many-to-many relation, each user can star an entry at most once.
+- **API.** `/api/education/` still works, and it now serializes with `use_natural_foreign_keys=True`, so `starred_by` shows usernames (`[["sasha"]]`) rather than internal database ids. No password hashes or emails are ever included.
+- **Extras.**
+  - The navbar shows an `OWNER`/`EDITOR` badge, so it is always clear which role you are testing with.
+  - After logging in, the user returns to the page they were trying to open (`?next=`). The redirect is validated with `url_has_allowed_host_and_scheme`, so an external `next` (open redirect) is ignored.
+  - There is a custom `403.html` page that names the account that was refused.
+- **Tests.** 12 new unit tests in `main/tests.py` cover every role × action combination, star toggling (once per user, GET does nothing), the JSON output, and the `next` redirect (25 tests in total, all passing).
 
 ## Reflection Questions
 
@@ -84,4 +133,29 @@ Every list page shows its data with a Django Template Language `{% for %}` loop 
 
 ## AI Usage
 
-I used an AI coding assistant (Claude Code) to help write the HTML markup and CSS for the new sections (Education, Experience, Hobbies), to help debug two Django configuration issues found while testing the site locally (`TEMPLATES` dirs and `STATICFILES_DIRS` misconfiguration that broke the page and the static files), to help implement the MVT layer for Assignment 2 (the `main` app, the `Experience`/`Education`/`Hobby` models, views, templates, and unit tests), to build the `base.html` skeleton plus the Experience Create/Delete/JSON flow for Tutorial 3, and to implement the Education Create/Update/Delete/JSON flow and the accompanying CSS refactor for Tugas 3. All content in the sections (education history, experience, hobbies, contact info) and the reflection answers above are my own.
+### Tools
+
+I used Claude Code (Anthropic's coding assistant, inside VS Code) throughout the semester. Before Tutorial 4 I used it for the HTML/CSS of the Education/Experience/Hobbies sections, debugging two Django configuration issues (`TEMPLATES` dirs and `STATICFILES_DIRS`), the MVT layer and unit tests for Assignment 2, the `base.html` skeleton and Experience Create/Delete/JSON flow for Tutorial 3, and the Education Create/Update/Delete/JSON flow plus the CSS refactor for Tugas 3. All content in the sections (education history, experience, hobbies, contact info) and the reflection answers are my own.
+
+### Tutorial 4 & Tugas 4
+
+**What the AI helped with:**
+I used Claude to help implement Tutorial 4 and Tugas 4 (authentication views, cookies, the Editor role and access checks, the star feature, and tests). I also used it to understand concepts I was unsure about, such as how HTTP statelessness, sessions, and cookies work together, why toggle_star has to be POST-only with a CSRF token, and how a ManyToManyField guarantees one star per user. I tested every role manually in the browser and found issues myself, such as the last_login time being 7 hours off because of TIME_ZONE = 'UTC', which was then fixed.
+
+**Prompt log (my prompts, in order):**
+1. "ini yg bagian star unstar gimana sih aku bingung"
+2. "bedanya session sm cookie apa?"
+3. "klo udah createsuperuser ngapain"
+4. "semuanya kan udh bener kecuali jam sesi terakhir loginnya salah dan pas aku logout trus ke projects gaada pilihan add jd gaada projects/add, itu hrs gmn"
+5. "skrg cara cek yg star sm 403 forbidden gmn"
+6. "yg 403 forbidden masih salah ini aku udh login trus aku coba projects/add dia bs ke halaman tambah proyek"
+
+**Limitations of the AI and what I had to catch or correct:**
+- **Wrong login time.** The AI copied the tutorial's `datetime.datetime.now()` without noticing that the project's `TIME_ZONE = 'UTC'` makes Django run the process in UTC. Its automated tests all passed, because they only checked that the cookie *existed*. I only noticed the time was 7 hours behind WIB by looking at the page myself; it was then fixed by setting `TIME_ZONE = 'Asia/Jakarta'`. Lesson: passing tests do not prove the output is *correct*, only that it is *there*.
+- **Tutorial assumptions vs. my repo.** Tutorial 4 assumes a `Project` section from Tutorial 3, while my Tutorial 3 work was on Experience. The AI had to add the Projects section first to match the required structure, and I checked that my Education/Experience/Hobbies work was left intact.
+- **Copying the tutorial blindly would have caused bugs.**
+  - The tutorial's star-button CSS (`background: var(--ink)` with white text) would have been unreadable in my dark mode.
+  - Showing `messages` on the login page would have displayed leftover "berhasil ditambahkan" messages from Experience/Education, which never displayed their own messages.
+  - Both were adjusted.
+- **Testing with the right account.** While checking the 403 behaviour, I thought it was broken because I could still open `/projects/add/`. The AI checked the database and found the only account was my superuser, which is supposed to have access. That confusion is why the role badge was added to the navbar.
+
