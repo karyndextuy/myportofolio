@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block meta %}
+    <title>Projects - {{ name }}</title>
+{% endblock meta %}
+{% block content %}
+    <main>
+        <section class="experience-section" id="projects">
+            <div class="container">
+                <p class="section-kicker">Karya yang saya bangun</p>
+                <div class="section-header">
+                    <h1>Projects</h1>
+                    {% if user.is_superuser %}
+                        <a href="{% url 'main:create_project' %}"
+                           class="button section-add-button project-add-button">
+                            <span aria-hidden="true">+</span>
+                            Tambah Proyek
+                        </a>
+                    {% endif %}
+                </div>
+                {% for message in messages %}
+                    <p class="form-message">{{ message }}</p>
+                {% endfor %}
+                <form method="get"
+                      action="{% url 'main:show_projects' %}"
+                      class="search-bar">
+                    <input type="search"
+                           name="title"
+                           value="{{ title_query }}"
+                           placeholder="Cari berdasarkan nama proyek"
+                           class="search-bar__input"
+                           aria-label="Cari berdasarkan nama proyek">
+                    <button type="submit" class="button">Cari</button>
+                </form>
+
+                <div class="project-grid">
+                    {% for project in project_list %}
+                        <article class="project-card">
+                            {% if project.project_image_url %}
+                                <img src="{{ project.project_image_url }}"
+                                     alt="Gambar {{ project.title }}"
+                                     class="experience-thumbnail">
+                            {% endif %}
+                            <h2>{{ project.title }}</h2>
+                            <span class="experience-category">{{ project.tech_stack }}</span>
+                            <p class="experience-description">
+                                {{ project.description }}
+                            </p>
+                            {% if project.project_url %}
+                                <p class="experience-status">
+                                    <a href="{{ project.project_url }}" target="_blank" rel="noopener">Lihat Proyek</a>
+                                </p>
+                            {% endif %}
+
+                            <div class="card-actions">
+                                {% include "components/project_star.html" with project=project %}
+                                {% if user.is_superuser %}
+                                    {% include "components/project_delete_modal.html" with project=project %}
+                                {% endif %}
+                            </div>
+                        </article>
+                    {% empty %}
+                        {% if title_query %}
+                            <p class="empty-state">Tidak ada proyek dengan nama tersebut.</p>
+                        {% else %}
+                            <p class="empty-state">
+                                Belum ada proyek yang ditambahkan.
+                            </p>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+    </main>
+{% endblock content %}

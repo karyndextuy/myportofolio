@@ -73,13 +73,21 @@ h1, .brand {
 
 .site-header nav {
     display: flex;
-    gap: 2rem;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1.5rem;
 }
 
 .site-header nav a {
     color: var(--ink);
     text-decoration: none;
     font-size: 0.95rem;
+}
+
+.nav-user {
+    color: var(--accent);
+    font-size: 0.95rem;
+    font-weight: 700;
 }
 
 .theme-toggle-input {
@@ -448,7 +456,8 @@ h1, .brand {
 }
 
 /* shared create/update form styling */
-.data-form {
+.data-form,
+.project-form {
     width: 100%;
     max-width: 100%;
     margin-top: 1.5rem;
@@ -702,4 +711,74 @@ h1, .brand {
         width: 100%;
         text-align: center;
     }
+}
+
+/* auth forms (register/login) */
+.form-help {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-top: 0.35rem;
+}
+
+.form-help ul {
+    padding-left: 1.25rem;
+}
+
+.form-message {
+    margin-bottom: 1rem;
+    padding: 0.7rem 1rem;
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    font-weight: 600;
+}
+
+.project-form + p {
+    margin-top: 0.75rem;
+}
+
+/* projects */
+.project-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+}
+
+.project-card {
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem;
+    background-color: var(--surface);
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--accent);
+    border-radius: var(--radius);
+}
+
+.project-card h2 {
+    margin-bottom: 0.25rem;
+    font-family: "Space Grotesk", -apple-system, sans-serif;
+    font-size: 1.25rem;
+}
+
+.star-form {
+    display: inline;
+}
+
+.button-star {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--ink);
+    color: var(--paper);
+}
+
+.button-star.is-starred {
+    background: var(--accent);
+    color: white;
+}
+
+.star-count {
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.25);
+    font-size: 0.8rem;
 }
