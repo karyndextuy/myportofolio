@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block meta %}
+    <title>403 Forbidden</title>
+{% endblock meta %}
+{% block content %}
+    <main>
+        <section class="list-page">
+            <div class="container error-page">
+                <p class="section-kicker">403 Forbidden</p>
+                <h1>Akses ditolak</h1>
+                <p class="empty-state">
+                    {% if user.is_authenticated %}
+                        Akun <strong>{{ user.username }}</strong> tidak memiliki izin untuk melakukan tindakan ini.
+                    {% else %}
+                        Kamu tidak memiliki izin untuk melakukan tindakan ini.
+                    {% endif %}
+                </p>
+                <a href="{% url 'main:show_main' %}" class="button">Kembali ke Profile</a>
+            </div>
+        </section>
+    </main>
+{% endblock content %}

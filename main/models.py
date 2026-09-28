@@ -37,6 +37,12 @@ class Education(models.Model):
     started_at = models.DateField()
     ended_at = models.DateField(blank=True, null=True)
     certificate_url = models.URLField(blank=True, null=True)
+    # Satu riwayat pendidikan bisa di-star banyak pengguna, dan satu pengguna
+    # bisa mem-star banyak riwayat pendidikan. Tabel penghubungnya menjamin
+    # maksimal satu star per pengguna untuk tiap entri.
+    starred_by = models.ManyToManyField(
+        User, related_name="starred_education", blank=True
+    )
 
     class Meta:
         ordering = ['-started_at']
