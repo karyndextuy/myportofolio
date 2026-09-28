@@ -170,7 +170,11 @@ def get_education_json(request):
     if institution_query:
         education = education.filter(institution__icontains=institution_query)
 
-    education_json = serializers.serialize("json", education)
+    # Natural key membuat starred_by berisi username, bukan id internal
+    # database pengguna.
+    education_json = serializers.serialize(
+        "json", education, use_natural_foreign_keys=True
+    )
     return HttpResponse(education_json, content_type="application/json")
 
 
@@ -185,6 +189,22 @@ def delete_education(request, education_id):
         education.delete()
         messages.success(request, "Riwayat pendidikan berhasil dihapus!")
         return redirect("main:show_education")
+
+    return redirect("main:show_education")
+
+
+# Tanpa cek peran: semua akun yang sudah login boleh memberi star.
+@login_required(login_url="/login/")
+def toggle_star_education(request, education_id):
+    education = get_object_or_404(Education, pk=education_id)
+
+    # Data hanya berubah lewat POST dari form ber-{% csrf_token %},
+    # bukan karena alamatnya dibuka lewat GET.
+    if request.method == "POST":
+        if education.starred_by.filter(pk=request.user.pk).exists():
+            education.starred_by.remove(request.user)
+        else:
+            education.starred_by.add(request.user)
 
     return redirect("main:show_education")
 
