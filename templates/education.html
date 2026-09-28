@@ -9,10 +9,12 @@
                 <p class="section-kicker">Riwayat pendidikan saya</p>
                 <div class="section-header">
                     <h1>Education</h1>
-                    <a href="{% url 'main:create_education' %}" class="button section-add-button">
-                        <span aria-hidden="true">+</span>
-                        Tambah Pendidikan
-                    </a>
+                    {% if user.is_superuser %}
+                        <a href="{% url 'main:create_education' %}" class="button section-add-button">
+                            <span aria-hidden="true">+</span>
+                            Tambah Pendidikan
+                        </a>
+                    {% endif %}
                 </div>
                 {% for message in messages %}
                     <p class="form-message">{{ message }}</p>
@@ -44,10 +46,14 @@
                                         <a href="{{ edu.certificate_url }}" target="_blank" rel="noopener">Lihat Sertifikat</a>
                                     </p>
                                 {% endif %}
-                                <div class="item-actions">
-                                    <a href="{% url 'main:update_education' edu.id %}" class="button button-secondary">Edit</a>
-                                    {% include "components/education_delete_modal.html" with edu=edu %}
-                                </div>
+                                {% if user.is_superuser or is_editor %}
+                                    <div class="item-actions">
+                                        <a href="{% url 'main:update_education' edu.id %}" class="button button-secondary">Edit</a>
+                                        {% if user.is_superuser %}
+                                            {% include "components/education_delete_modal.html" with edu=edu %}
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
                             </div>
                         </article>
                     {% empty %}

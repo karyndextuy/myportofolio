@@ -8,9 +8,11 @@ from django.core import serializers
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from main.forms import ExperienceForm, EducationForm, ProjectForm
 from main.models import Experience, Education, Hobby, Project
+from main.roles import can_create, can_delete, can_update
 
 
 def show_main(request):
@@ -71,7 +73,11 @@ def show_hobbies(request):
     return render(request, "hobbies.html", context)
 
 
+@login_required(login_url="/login/")
 def create_experience(request):
+    if not can_create(request.user):
+        raise PermissionDenied
+
     form = ExperienceForm(request.POST or None)
 
     if request.method == "POST" and form.is_valid():
@@ -97,7 +103,11 @@ def get_experience_json(request):
     return HttpResponse(experiences_json, content_type="application/json")
 
 
+@login_required(login_url="/login/")
 def delete_experience(request, experience_id):
+    if not can_delete(request.user):
+        raise PermissionDenied
+
     experience = get_object_or_404(Experience, pk=experience_id)
 
     if request.method == "POST":
@@ -108,7 +118,13 @@ def delete_experience(request, experience_id):
     return redirect("main:show_experience")
 
 
+# Pengunjung tanpa login dialihkan ke /login/; akun yang sudah login
+# tetapi bukan pemilik portofolio ditolak dengan 403.
+@login_required(login_url="/login/")
 def create_education(request):
+    if not can_create(request.user):
+        raise PermissionDenied
+
     form = EducationForm(request.POST or None)
 
     if request.method == "POST" and form.is_valid():
@@ -124,7 +140,12 @@ def create_education(request):
     return render(request, "education_form.html", context)
 
 
+# Editor boleh mengubah data, selain pemilik portofolio.
+@login_required(login_url="/login/")
 def update_education(request, education_id):
+    if not can_update(request.user):
+        raise PermissionDenied
+
     education = get_object_or_404(Education, pk=education_id)
     form = EducationForm(request.POST or None, instance=education)
 
@@ -153,7 +174,11 @@ def get_education_json(request):
     return HttpResponse(education_json, content_type="application/json")
 
 
+@login_required(login_url="/login/")
 def delete_education(request, education_id):
+    if not can_delete(request.user):
+        raise PermissionDenied
+
     education = get_object_or_404(Education, pk=education_id)
 
     if request.method == "POST":
@@ -265,17 +290,28 @@ def register(request):
 
 def login_user(request):
     form = AuthenticationForm(request, data=request.POST or None)
+    # ?next= diisi otomatis oleh @login_required, misalnya /login/?next=/education/add/
+    next_url = request.POST.get("next") or request.GET.get("next", "")
 
     if request.method == "POST" and form.is_valid():
         user = form.get_user()
         login(request, user)
-        response = redirect("main:show_main")
+        # Hanya ikuti next yang mengarah ke situs ini sendiri (mencegah open redirect).
+        if url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            response = redirect(next_url)
+        else:
+            response = redirect("main:show_main")
         response.set_cookie('last_login', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         return response
 
     context = {
         "name": "Karyn Isabelle Dexter",
         "form": form,
+        "next": next_url,
     }
     return render(request, "login.html", context)
 

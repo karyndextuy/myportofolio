@@ -13,7 +13,7 @@
 <body>
     <header class="site-header">
         <div class="container">
-            <a href="{% url 'main:show_main' %}" class="brand">{{ name }}</a>
+            <a href="{% url 'main:show_main' %}" class="brand">{{ name|default:"Karyn Isabelle Dexter" }}</a>
             <div class="header-controls">
                 <nav>
                     <a href="{% url 'main:show_main' %}">Profile</a>
@@ -23,6 +23,11 @@
                     <a href="{% url 'main:show_hobbies' %}">Hobbies</a>
                     {% if user.is_authenticated %}
                         <span class="nav-user">{{ user.username }}</span>
+                        {% if user.is_superuser %}
+                            <span class="nav-role">Owner</span>
+                        {% elif is_editor %}
+                            <span class="nav-role">Editor</span>
+                        {% endif %}
                         <a href="{% url 'main:logout' %}">Logout</a>
                     {% else %}
                         <a href="{% url 'main:login' %}">Login</a>
@@ -45,7 +50,7 @@
 
     <footer class="site-footer">
         <div class="container">
-            <p>&copy; 2026 {{ name }}. Fakultas Ilmu Komputer, Universitas Indonesia.</p>
+            <p>&copy; 2026 {{ name|default:"Karyn Isabelle Dexter" }}. Fakultas Ilmu Komputer, Universitas Indonesia.</p>
         </div>
     </footer>
 </body>
