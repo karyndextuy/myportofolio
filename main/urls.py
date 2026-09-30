@@ -15,6 +15,7 @@ from main.views import (
     toggle_star_education,
     show_projects,
     create_project,
+    create_project_ajax,
     get_projects_json,
     delete_project,
     toggle_star,
@@ -44,6 +45,7 @@ urlpatterns = [
     path("hobbies/", show_hobbies, name="show_hobbies"),
     path("projects/", show_projects, name="show_projects"),
     path("projects/add/", create_project, name="create_project"),
+    path("projects/add-ajax/", create_project_ajax, name="create_project_ajax"),
     path("projects/<uuid:project_id>/delete/", delete_project, name="delete_project"),
     path(
         "projects/<uuid:project_id>/star/",
