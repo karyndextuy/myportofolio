@@ -1,0 +1,47 @@
+<div id="add-education-modal"
+     class="form-modal"
+     popover="auto"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="add-education-modal-title">
+    <button type="button"
+            class="form-modal__backdrop"
+            popovertarget="add-education-modal"
+            popovertargetaction="hide"
+            aria-label="Tutup form tambah pendidikan"></button>
+
+    <div class="form-modal__content">
+        <button type="button"
+                class="form-modal__close"
+                popovertarget="add-education-modal"
+                popovertargetaction="hide"
+                aria-label="Tutup form tambah pendidikan">&times;</button>
+
+        <h2 id="add-education-modal-title">Tambah Riwayat Pendidikan</h2>
+        {# action tetap menunjuk view lama sebagai cadangan jika JavaScript nonaktif. #}
+        {# novalidate: validasi dilakukan ModelForm di server, pesannya ditampilkan #}
+        {# lewat toast dan di bawah tiap field, sehingga aturannya hanya ada di satu tempat. #}
+        <form id="education-form"
+              method="post"
+              action="{% url 'main:create_education' %}"
+              class="data-form"
+              novalidate>
+            {% csrf_token %}
+            {% for field in form %}
+                <div class="form-group" data-field="{{ field.name }}">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {# Diisi JavaScript dengan pesan validasi dari server #}
+                    <p class="form-error hide" data-error-for="{{ field.name }}"></p>
+                </div>
+            {% endfor %}
+            <div class="form-modal__actions">
+                <button type="button"
+                        class="button button-secondary"
+                        popovertarget="add-education-modal"
+                        popovertargetaction="hide">Batal</button>
+                <button type="submit" class="button">Tambah Pendidikan</button>
+            </div>
+        </form>
+    </div>
+</div>

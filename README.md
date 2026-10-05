@@ -11,9 +11,9 @@ Class: PBP A
 A personal portfolio website built with Django, following the MVT (Model-View-Template) pattern. Every page is backed by its own model/view/template and reachable from the navbar:
 
 - **Profile** (`/`) - name, NPM, photo, a short bio, and the time of the visitor's last login (read from the `last_login` cookie).
-- **Education** (`/education/`) - education history as a timeline, with create/update/delete, a JSON endpoint (`/api/education/`), and a star button.
+- **Education** (`/education/`) - education history as a timeline. The page loads its data with `fetch()` from `/api/education/`, searches by institution as you type (debounced), adds new entries from a modal without reloading, and has a star button that updates in place. Entries can also be edited and deleted.
 - **Experience** (`/experience/`) - organizational/committee experience as a card grid, with create/delete and a JSON endpoint (`/api/experience/`).
-- **Projects** (`/projects/`) - projects as a card grid, with create/delete, a JSON endpoint (`/api/projects/`), and a star button.
+- **Projects** (`/projects/`) - projects as a card grid loaded with AJAX from `/api/projects/`, with debounced search, an add-project modal, delete, and a star button.
 - **Hobbies** (`/hobbies/`) - everyday hobbies as an icon grid.
 
 Visitors can register, log in, and log out using Django's built-in authentication. Every page stays readable without an account; what a user can *change* depends on their role:
@@ -24,6 +24,8 @@ Visitors can register, log in, and log out using Django's built-in authenticatio
 | Registered user | Yes | Yes | 403 Forbidden | 403 Forbidden |
 | Editor (member of the `Editor` group) | Yes | Yes | Yes | 403 Forbidden |
 | Portfolio owner (superuser) | Yes | Yes | Yes | Yes |
+
+The AJAX endpoints (`/education/add-ajax/`, `/projects/add-ajax/`) answer with JSON instead of a redirect, so a visitor who is not logged in gets a JSON `403` there rather than being sent to the login page.
 
 ## Running the Project
 
@@ -105,6 +107,45 @@ python manage.py test
   - There is a custom `403.html` page that names the account that was refused.
 - **Tests.** 12 new unit tests in `main/tests.py` cover every role × action combination, star toggling (once per user, GET does nothing), the JSON output, and the `next` redirect (25 tests in total, all passing).
 
+### Tutorial 5
+- Added a reusable toast notification (`templates/components/toast.html` + `static/js/toast.js`, included once in `base.html`) built on the Popover API, so `showToast(title, message, type)` works on every page.
+- Switched the Projects page to AJAX:
+  - `get_projects_json` now builds its JSON by hand with `JsonResponse`, so it can include `star_count`, `is_starred` for the current user, and `starred_by_names`.
+  - `project.html` only renders the page skeleton, then fetches the data with loading, empty, and error states.
+- Added debounced search (300 ms), an add-project modal, a `create_project_ajax` view (201/400/403, sent with `X-CSRFToken`), and XSS protection: `escapeHtml()` on everything inserted into `innerHTML`, plus `strip_tags` in `ProjectForm.clean_<field>`.
+
+### Tugas 5
+Applied the whole Tutorial 5 pattern end-to-end to the **Education** section (my Tugas 3/4 section), keeping the Tugas 4 roles.
+
+- **Data via AJAX.**
+  - `show_education` now only renders the skeleton.
+  - `get_education_json` builds the JSON by hand with `JsonResponse` through a small `serialize_education()` helper. Each entry includes `star_count`, `is_starred` for the logged-in user, and `starred_by_names` (usernames only, no internal ids).
+  - It uses `prefetch_related("starred_by")`, so the endpoint always runs the same number of queries no matter how many entries there are; a test checks this.
+  - The page has loading, empty (with a different message when a search finds nothing), and error states; the error state has a **Coba lagi** (retry) button.
+- **Debounced search.**
+  - Searching by institution sends a request only after 300 ms without typing. Typing "negeri" sends 1 request instead of 6.
+  - Enter or the Cari button searches immediately.
+  - An `AbortController` cancels an older request, so a slow old response can't overwrite a newer result.
+  - The keyword is also kept in the URL (`?institution=`), so refreshing or sharing the page keeps the filter.
+- **Add data from a modal.**
+  - **Tambah Pendidikan** opens `components/education_form_modal.html`.
+  - `create_education_ajax` (POST only) validates with `EducationForm` and returns `201`, `400` with per-field errors, or `403`. The role check uses `can_create()` from Tugas 4 inside the view, so regular users and Editors get `403` even when they call the endpoint directly.
+  - The request carries the CSRF token in the `X-CSRFToken` header.
+  - On success the modal closes, the form resets, a green toast appears, and the list reloads with the current search keyword, without a page reload.
+- **Toasts.** Failures show a red toast with the server's validation messages (prefixed with the field label, e.g. "Institusi: This field is required."). The same messages also appear under the matching field in the modal.
+- **XSS protection.**
+  - Every text value from the JSON goes through `escapeHtml()` before it reaches `innerHTML`.
+  - The delete modal fills in the institution name with `textContent`.
+  - `safeUrl()` drops any certificate link that isn't `http`/`https`.
+  - On the server, `EducationForm.clean_institution` and `clean_description` remove HTML with `strip_tags`. An institution that is only an `<img onerror=...>` payload is rejected.
+  - `getCookie`, `escapeHtml`, and `safeUrl` live in a shared `static/js/utils.js` loaded by `base.html`, and both Projects and Education use it.
+- **Extras.**
+  - The star button now toggles via `fetch` and updates its count, label, and `aria-pressed` in place. Visitors who aren't logged in still submit the normal form and get redirected to login.
+  - One shared delete-confirmation modal replaces one modal per entry.
+  - The form checks that the end date is not before the start date.
+  - The modal CSS from Tutorial 5 is shared through a generic `.form-modal` class.
+- **Tests.** The old Education tests were rewritten to check the JSON instead of the HTML, and 12 new tests in `EducationAjaxTest` cover 201/400/403/405, CSRF, XSS rejection, `strip_tags`, the modal only appearing for the owner, per-user `is_starred`, the query count, and the AJAX star. That makes 39 tests in total, all passing.
+
 ## Reflection Questions
 
 ### Assignment 1
@@ -130,6 +171,18 @@ python manage.py test
 2. JSON is preferred over XML mainly because it is lighter and cheaper to parse. JSON has no closing tags to repeat, so the same data is consistently smaller in bytes than the XML equivalent, and it maps almost one-to-one onto the data structures JavaScript (and Python, and most other languages) already use - objects and arrays - so a JSON string becomes a native object with a single call (`JSON.parse()` in JS, or `serializers.deserialize("json", ...)` in this project's Django code), whereas XML needs a separate DOM-parsing step plus manual traversal (`getElementsByTagName`, XPath) to pull values back out. That combination of a smaller payload and a near-zero-effort parse-to-object step is why JSON is now the default format for REST APIs, while XML is mostly seen in older or more document-oriented systems (like SOAP or RSS) where its stricter schema/validation story still matters.
 
 3. When `/api/education/` is requested, `get_education_json` first builds a queryset (`Education.objects.all()`, narrowed with `.filter(institution__icontains=...)` if a search term was given), then calls `serializers.serialize("json", education)` and wraps the result in an `HttpResponse` with `content_type="application/json"`. A `QuerySet` holds live `Education` model instances - Python objects - which can't be sent over HTTP as-is, since HTTP only carries bytes/text; serialization is the step that walks each instance's fields and turns them into a flat, language-agnostic JSON string (a list of `{"model", "pk", "fields"}` entries) that any client - a browser, Postman, another backend - can read regardless of what language it's written in. On the display side, `show_education` calls that same `get_education_json` view internally, runs `serializers.deserialize("json", ...)` on its `.content`, pulls the real `Education` objects back out with `[e.object for e in ...]`, and hands that list to `education.html`'s `{% for edu in education_list %}` loop. So the page is always rendering exactly what the JSON endpoint would return, instead of the API and the page silently drifting apart if someone edited one but not the other.
+
+### Tugas 5
+
+1. Debouncing means waiting until an event has *stopped* happening for a short time before running a function. In my Education search, every keystroke calls `clearTimeout()` on the pending timer and starts a new 300 ms `setTimeout()`, so the search only runs once the user pauses. Without it, the `input` event would send one request per character: typing "Universitas" would hit `/api/education/` 11 times. That puts extra load on the server and database, and it can show wrong results, because the responses can arrive out of order and an older, slower one can overwrite the newer result. The UI also flickers between loading states. With debouncing, typing "negeri" sends one request instead of six. I still use an `AbortController` as a second safeguard, so if a new search starts while an old request is in flight, the old one is cancelled.
+
+2. `fetch()` returns a `Promise` straight away, not the response itself, because the network request takes time. `await` pauses only the `async` function it's in (not the whole browser) until that `Promise` settles, and then gives back the actual `Response`. I need a second `await` for `response.json()`, because reading and parsing the body is also asynchronous. Without `await`, `response` would just be a pending `Promise`:
+   - `response.ok` would be `undefined`, so my `if (!response.ok)` check would wrongly throw an error.
+   - `response.json` would not exist, so calling it would fail with a `TypeError`.
+   - Any code after it, such as rendering the timeline, would run before the data arrives.
+   - A failed request would not be caught by my `try/catch`, so it would surface as an unhandled rejection, and the page would never switch to the error state.
+
+3. Cross-Site Scripting (XSS) is when an attacker gets their own JavaScript to run inside my site, in other visitors' browsers. In stored XSS, the payload is saved to the database (for example, an education entry named `<img src="x" onerror="alert('XSS!')">`) and runs for everyone who views the list, including people who aren't logged in. Because the code runs on my own origin, it can read the `csrftoken` cookie and send requests as the victim (starring, or deleting entries if the victim is the owner), change the page, or show a fake login form, so CSRF protection no longer helps. Django templates are safer by default because every `{{ variable }}` is auto-escaped (`<` becomes `&lt;`), so the browser shows the data as text. With AJAX, the data arrives as JSON and my JavaScript builds HTML strings and assigns them to `innerHTML`. Django is not involved at that point, so nothing escapes the data automatically, and the browser parses any tag in it as real HTML. That is why every value has to be escaped by hand (`escapeHtml()` or `textContent`), including values inside attributes (a `"` can close an attribute early) and URLs (`javascript:` contains no special characters, so it needs `safeUrl()` plus `URLField` validation). Cleaning input on the server with `strip_tags` is a second layer that blocks the payload before it is saved, but escaping when the data is displayed is the main defence, because it also covers data that was saved earlier.
 
 ## AI Usage
 
@@ -159,3 +212,53 @@ I used Claude to help implement Tutorial 4 and Tugas 4 (authentication views, co
   - Both were adjusted.
 - **Testing with the right account.** While checking the 403 behaviour, I thought it was broken because I could still open `/projects/add/`. The AI checked the database and found the only account was my superuser, which is supposed to have access. That confusion is why the role badge was added to the navbar.
 
+### Tutorial 5 & Tugas 5
+
+**What the AI helped with:**
+I used Claude Code to understand and implement some of the methods in Tutorial 5 and Tugas 5:
+- the toast component;
+- AJAX loading for Projects and Education, with debounced search;
+- the add-data modals with `fetch` + `X-CSRFToken`;
+- the `create_*_ajax` views;
+- the XSS escaping and `strip_tags` cleaning;
+- the AJAX star;
+- the unit tests.
+
+I also used it to understand concepts I wasn't sure about, such as why `serializers.serialize` can't include per-user data like `is_starred` (so the JSON has to be built by hand), why `@login_required` is a bad fit for a `fetch` endpoint (the redirect gets followed and returns an HTML login page with status 200), and why escaping on display matters more than cleaning on input. I wrote the reflection answers above based on how my own Education page works.
+
+**Prompt log (my prompts, in order):**
+
+1. “ini bagian ajax buat nampilin data udah bener belum? aku masih bingung json yang dari view ini nanti diambilnya gimana lewat fetch”
+
+2. “berarti halaman listnya awalnya kosong dulu terus javascript yang masukin datanya ya? loading sama empty state-nya ditaruh dimana?”
+
+3. “sekarang aku mau bikin search, ini kalau setiap ketik langsung fetch berarti bakal banyak request ya? berarti perlu debounce?”
+
+4. “ini debounce yang aku buat udah bener belum? maksudnya dia nunggu user berhenti ngetik dulu baru request kan?”
+
+5. “lanjut ke tambah data, kalau sesuai tugas formnya harus di modal dan dikirim pake ajax ya? ini strukturku udah bener belum?”
+
+6. “untuk view post ini status 201, 400, sama 403-nya udah sesuai belum? terus permissionnya harus dicek di view juga kan?”
+
+7. “ini csrf token aku udah kepasang belum? aku pake FormData dari form django”
+
+8. “bagian toast sama error validation ini udah bener belum? aku mau kalau inputnya salah pesan dari servernya ikut muncul”
+
+9. “terakhir cek bagian xss dong, kalau data dari json aku masukin ke html pake javascript berarti harus di escape dulu kan? clean field pake strip_tags juga udah aku tambahin”
+
+10. “boleh cek satu-satu sesuai checklist tugas 5? jangan ubah kode dulu, aku cuma mau tau bagian mana yang udah memenuhi dan mana yang masih kurang”
+
+
+**Limitations of the AI and what I had to catch or correct:**
+- **The tutorial code didn't match my project.**
+  - The tutorial's card markup uses class names that don't exist in my CSS (`project-search`, `project-card-actions`, `project-image`).
+  - The tutorial's `@login_required` redirect pattern doesn't work for a JSON endpoint.
+  - The code had to be adapted to my existing classes and roles instead of being copied as-is, as the tutorial itself warns.
+- **Moving to AJAX broke tests in a non-obvious way.** Six existing Education tests (four from Tugas 4, two from Assignment 2) checked for data in the HTML, which is now empty because JavaScript renders it. One check also passed for the wrong reason: "Universitas Indonesia" is in my footer, so "the institution is on the page" was always true. The tests were rewritten to check the JSON instead.
+- **The AI's own browser tests needed fixing several times; none of these were app bugs.**
+  - Selenium reads an empty string while the toast is still fading in.
+  - My `.timeline-year` CSS uppercases "Sekarang".
+  - A star button gets replaced while the test is still holding the old element.
+  - The AI also miscounted the database queries in one test.
+  - Each failure had to be checked to tell a real bug from a mistake in the test. Lesson: a red test is not automatically a broken feature, and a green test is not automatically a correct one.
+- **Known leftover.** The "Test Toast Notifikasi" button from Tutorial 5 (Step 5) is still on the Projects page. It was only meant for checking the toast and can be removed.

@@ -9,6 +9,7 @@ from main.views import (
     get_experience_json,
     delete_experience,
     create_education,
+    create_education_ajax,
     update_education,
     get_education_json,
     delete_education,
@@ -34,6 +35,7 @@ urlpatterns = [
     path("api/experience/", get_experience_json, name="get_experience_json"),
     path("education/", show_education, name="show_education"),
     path("education/add/", create_education, name="create_education"),
+    path("education/add-ajax/", create_education_ajax, name="create_education_ajax"),
     path("education/<uuid:education_id>/edit/", update_education, name="update_education"),
     path("education/<uuid:education_id>/delete/", delete_education, name="delete_education"),
     path(

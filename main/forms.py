@@ -100,6 +100,25 @@ class EducationForm(ModelForm):
             ),
         }
 
+    # Lapisan pertahanan kedua terhadap XSS: tag HTML dibuang sejak data masuk.
+    # Pertahanan utamanya tetap escaping saat data ditampilkan (escapeHtml di JS).
+    def clean_institution(self):
+        institution = strip_tags(self.cleaned_data["institution"]).strip()
+        if not institution:
+            raise ValidationError("Nama institusi tidak boleh hanya berisi tag HTML.")
+        return institution
+
+    def clean_description(self):
+        return strip_tags(self.cleaned_data["description"]).strip()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        started_at = cleaned_data.get("started_at")
+        ended_at = cleaned_data.get("ended_at")
+        if started_at and ended_at and ended_at < started_at:
+            self.add_error("ended_at", "Tanggal selesai tidak boleh sebelum tanggal mulai.")
+        return cleaned_data
+
 
 class ProjectForm(ModelForm):
     class Meta:

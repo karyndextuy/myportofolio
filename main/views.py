@@ -50,18 +50,15 @@ def show_experience(request):
 
 
 def show_education(request):
-    json_response = get_education_json(request)
-    education_list = serializers.deserialize(
-        "json",
-        json_response.content.decode("utf-8"),
-    )
-    education_list = [education.object for education in education_list]
+    # Halaman hanya berisi kerangka; data riwayat pendidikan diambil oleh
+    # JavaScript dari /api/education/ (lihat get_education_json).
     institution_query = request.GET.get("institution", "").strip()
 
     context = {
         "name": "Karyn Isabelle Dexter",
-        "education_list": education_list,
         "institution_query": institution_query,
+        # Form kosong untuk modal tambah data (hanya dirender untuk pemilik)
+        "form": EducationForm(),
     }
     return render(request, "education.html", context)
 
@@ -164,19 +161,71 @@ def update_education(request, education_id):
     return render(request, "education_form.html", context)
 
 
+def serialize_education(education, user):
+    """Mengubah satu objek Education menjadi dict siap-JSON untuk ``user``.
+
+    Disusun manual (bukan ``serializers.serialize``) supaya bisa menyertakan
+    informasi yang bergantung pada pengguna yang sedang login, yaitu
+    ``is_starred``. Daftar pemberi star hanya dikirim sebagai username,
+    tanpa id internal database. Pemanggil sebaiknya sudah melakukan
+    ``prefetch_related("starred_by")`` agar tidak terjadi query N+1.
+    """
+    starred_users = education.starred_by.all()
+    return {
+        "pk": str(education.id),
+        "fields": {
+            "institution": education.institution,
+            "description": education.description,
+            "started_at": education.started_at.isoformat(),
+            "ended_at": education.ended_at.isoformat() if education.ended_at else None,
+            "is_ongoing": education.is_ongoing,
+            "certificate_url": education.certificate_url or "",
+            "star_count": len(starred_users),
+            "is_starred": user.is_authenticated and user in starred_users,
+            "starred_by_names": ", ".join(u.username for u in starred_users),
+        },
+    }
+
+
 def get_education_json(request):
     institution_query = request.GET.get("institution", "").strip()
-    education = Education.objects.all()
+    education = Education.objects.prefetch_related("starred_by")
 
     if institution_query:
         education = education.filter(institution__icontains=institution_query)
 
-    # Natural key membuat starred_by berisi username, bukan id internal
-    # database pengguna.
-    education_json = serializers.serialize(
-        "json", education, use_natural_foreign_keys=True
-    )
-    return HttpResponse(education_json, content_type="application/json")
+    data = [serialize_education(edu, request.user) for edu in education]
+    return JsonResponse(data, safe=False)
+
+
+@require_POST
+def create_education_ajax(request):
+    """Endpoint AJAX untuk modal tambah riwayat pendidikan.
+
+    Membalas JSON dengan status 201 (berhasil), 400 (validasi gagal, beserta
+    pesan per field), atau 403 (bukan pemilik portofolio). Sengaja tanpa
+    @login_required: redirect ke halaman login akan diikuti fetch dan tidak
+    bisa dikenali JavaScript, sedangkan AnonymousUser juga ditolak oleh
+    can_create() dengan JSON 403.
+    """
+    if not can_create(request.user):
+        return JsonResponse(
+            {"message": "Hanya pemilik portofolio yang dapat menambahkan riwayat pendidikan."},
+            status=403,
+        )
+
+    form = EducationForm(request.POST)
+    if form.is_valid():
+        education = form.save()
+        return JsonResponse(
+            {
+                "message": "Riwayat pendidikan berhasil ditambahkan.",
+                "pk": str(education.id),
+            },
+            status=201,
+        )
+
+    return JsonResponse({"errors": form.errors.get_json_data()}, status=400)
 
 
 @login_required(login_url="/login/")
@@ -206,6 +255,11 @@ def toggle_star_education(request, education_id):
             education.starred_by.remove(request.user)
         else:
             education.starred_by.add(request.user)
+
+    # Dipanggil lewat fetch (tanpa reload): kirim status star terbaru sebagai
+    # JSON. Form biasa (JavaScript nonaktif) tetap dialihkan seperti Tugas 4.
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse(serialize_education(education, request.user))
 
     return redirect("main:show_education")
 
