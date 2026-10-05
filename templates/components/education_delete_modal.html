@@ -1,38 +1,34 @@
-<button type="button"
-        class="button button-danger"
-        popovertarget="delete-education-{{ edu.id }}"
-        aria-label="Hapus {{ edu.institution }}"
-        title="Hapus riwayat pendidikan">
-    Hapus
-</button>
-<div id="delete-education-{{ edu.id }}"
+{# Satu modal konfirmasi untuk semua entri. Kartu yang dirender JavaScript #}
+{# hanya menyimpan URL hapus di data-delete-url; skrip education.html #}
+{# mengisi action form dan nama institusi sebelum modal dibuka. #}
+<div id="delete-education-modal"
      class="delete-modal"
      popover="auto"
      role="dialog"
      aria-modal="true"
-     aria-labelledby="delete-education-title-{{ edu.id }}">
+     aria-labelledby="delete-education-title">
     <button type="button"
             class="delete-modal__backdrop"
-            popovertarget="delete-education-{{ edu.id }}"
+            popovertarget="delete-education-modal"
             popovertargetaction="hide"
             aria-label="Tutup konfirmasi hapus"></button>
     <div class="delete-modal__content">
         <button type="button"
                 class="delete-modal__close"
-                popovertarget="delete-education-{{ edu.id }}"
+                popovertarget="delete-education-modal"
                 popovertargetaction="hide"
                 aria-label="Tutup konfirmasi hapus">&times;</button>
-        <h2 id="delete-education-title-{{ edu.id }}">Hapus Riwayat Pendidikan?</h2>
+        <h2 id="delete-education-title">Hapus Riwayat Pendidikan?</h2>
         <p>
             Apakah Anda yakin ingin menghapus
-            <strong>{{ edu.institution }}</strong>?
+            <strong id="delete-education-name"></strong>?
         </p>
         <div class="delete-modal__actions">
             <button type="button"
                     class="button button-secondary"
-                    popovertarget="delete-education-{{ edu.id }}"
+                    popovertarget="delete-education-modal"
                     popovertargetaction="hide">Batal</button>
-            <form method="post" action="{% url 'main:delete_education' edu.id %}">
+            <form id="delete-education-form" method="post" action="">
                 {% csrf_token %}
                 <button type="submit" class="button button-danger">Ya, Hapus</button>
             </form>

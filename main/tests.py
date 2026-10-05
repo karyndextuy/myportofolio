@@ -76,12 +76,25 @@ class EducationTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "education.html")
 
-    def test_education_page_shows_data(self):
+    def test_education_page_renders_skeleton_for_ajax(self):
         response = self.client.get(reverse("main:show_education"))
 
-        self.assertContains(response, self.education.institution)
-        self.assertContains(response, self.education.description)
-        self.assertContains(response, "Sekarang")
+        # Data tidak lagi dirender server; halaman hanya berisi kerangka
+        self.assertNotContains(response, self.education.description)
+        self.assertContains(response, 'id="education-timeline"')
+        self.assertContains(response, 'id="education-loading"')
+        self.assertContains(response, 'id="education-error"')
+        self.assertContains(response, reverse("main:get_education_json"))
+
+    def test_education_json_shows_data(self):
+        response = self.client.get(reverse("main:get_education_json"))
+
+        self.assertEqual(response["Content-Type"], "application/json")
+        fields = response.json()[0]["fields"]
+        self.assertEqual(fields["institution"], self.education.institution)
+        self.assertEqual(fields["description"], self.education.description)
+        self.assertEqual(fields["started_at"], "2025-01-01")
+        self.assertTrue(fields["is_ongoing"])
 
     def test_empty_education_page(self):
         Education.objects.all().delete()
@@ -92,10 +105,18 @@ class EducationTest(TestCase):
     def test_completed_education(self):
         self.education.ended_at = timezone.now()
         self.education.save()
-        response = self.client.get(reverse("main:show_education"))
+        self.education.refresh_from_db()
+        fields = self.client.get(reverse("main:get_education_json")).json()[0]["fields"]
 
         self.assertFalse(self.education.is_ongoing)
-        self.assertNotContains(response, "Sekarang")
+        self.assertFalse(fields["is_ongoing"])
+        self.assertEqual(fields["ended_at"], self.education.ended_at.isoformat())
+
+    def test_education_json_search(self):
+        url = reverse("main:get_education_json")
+
+        self.assertEqual(len(self.client.get(url, {"institution": "indonesia"}).json()), 1)
+        self.assertEqual(self.client.get(url, {"institution": "zzz"}).json(), [])
 
 
 class HobbyTest(TestCase):
@@ -160,7 +181,8 @@ class EducationAuthorizationTest(TestCase):
         response = self.client.get(reverse("main:show_education"))
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "Tambah Pendidikan")
-        self.assertNotContains(response, ">Edit<")
+        self.assertContains(response, "const CAN_UPDATE = false;")
+        self.assertContains(response, "const CAN_DELETE = false;")
         self.assertNotContains(response, "Ya, Hapus")
 
         for url in [self.create_url, self.update_url]:
@@ -194,7 +216,8 @@ class EducationAuthorizationTest(TestCase):
 
         self.assertContains(response, "button-star")
         self.assertNotContains(response, "Tambah Pendidikan")
-        self.assertNotContains(response, ">Edit<")
+        self.assertContains(response, "const CAN_UPDATE = false;")
+        self.assertContains(response, "const CAN_DELETE = false;")
         self.assertNotContains(response, "Ya, Hapus")
 
     def test_editor_can_update_but_not_create_or_delete(self):
@@ -214,7 +237,8 @@ class EducationAuthorizationTest(TestCase):
         self.login_as(self.editor)
         response = self.client.get(reverse("main:show_education"))
 
-        self.assertContains(response, ">Edit<")
+        self.assertContains(response, "const CAN_UPDATE = true;")
+        self.assertContains(response, "const CAN_DELETE = false;")
         self.assertContains(response, '<span class="nav-role">Editor</span>')
         self.assertNotContains(response, "Tambah Pendidikan")
         self.assertNotContains(response, "Ya, Hapus")
@@ -223,7 +247,8 @@ class EducationAuthorizationTest(TestCase):
         self.login_as(self.owner)
         response = self.client.get(reverse("main:show_education"))
         self.assertContains(response, "Tambah Pendidikan")
-        self.assertContains(response, ">Edit<")
+        self.assertContains(response, "const CAN_UPDATE = true;")
+        self.assertContains(response, "const CAN_DELETE = true;")
         self.assertContains(response, "Ya, Hapus")
 
         self.client.post(self.create_url, self.valid_education_data("SMA Negeri 8"))
@@ -247,10 +272,9 @@ class EducationAuthorizationTest(TestCase):
         self.education.starred_by.add(self.regular)  # add ulang tidak menggandakan star
         self.assertEqual(self.education.starred_by.count(), 1)
 
-        response = self.client.get(reverse("main:show_education"))
-        self.assertContains(response, "is-starred")
-        self.assertContains(response, "Unstar")
-        self.assertContains(response, '<span class="star-count">1</span>')
+        fields = self.client.get(reverse("main:get_education_json")).json()[0]["fields"]
+        self.assertEqual(fields["star_count"], 1)
+        self.assertTrue(fields["is_starred"])
 
     def test_star_counts_every_role_and_ignores_get(self):
         for user in [self.regular, self.editor, self.owner]:
@@ -269,10 +293,13 @@ class EducationAuthorizationTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         fields = json.loads(response.content)[0]["fields"]
-        self.assertCountEqual(fields["starred_by"], [["sasha"], ["rian"]])
+        self.assertEqual(fields["star_count"], 2)
+        self.assertFalse(fields["is_starred"])  # pengunjung belum login
+        self.assertCountEqual(fields["starred_by_names"].split(", "), ["sasha", "rian"])
         body = response.content.decode()
         self.assertNotIn("password", body)
         self.assertNotIn("pbkdf2", body)
+        self.assertNotIn(f'"id": {self.regular.id}', body)
 
     def test_login_redirects_back_to_next_only_within_site(self):
         credentials = {"username": "rian", "password": self.password}

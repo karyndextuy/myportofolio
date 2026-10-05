@@ -50,17 +50,12 @@ def show_experience(request):
 
 
 def show_education(request):
-    json_response = get_education_json(request)
-    education_list = serializers.deserialize(
-        "json",
-        json_response.content.decode("utf-8"),
-    )
-    education_list = [education.object for education in education_list]
+    # Halaman hanya berisi kerangka; data riwayat pendidikan diambil oleh
+    # JavaScript dari /api/education/ (lihat get_education_json).
     institution_query = request.GET.get("institution", "").strip()
 
     context = {
         "name": "Karyn Isabelle Dexter",
-        "education_list": education_list,
         "institution_query": institution_query,
     }
     return render(request, "education.html", context)
@@ -164,19 +159,41 @@ def update_education(request, education_id):
     return render(request, "education_form.html", context)
 
 
+def serialize_education(education, user):
+    """Mengubah satu objek Education menjadi dict siap-JSON untuk ``user``.
+
+    Disusun manual (bukan ``serializers.serialize``) supaya bisa menyertakan
+    informasi yang bergantung pada pengguna yang sedang login, yaitu
+    ``is_starred``. Daftar pemberi star hanya dikirim sebagai username,
+    tanpa id internal database. Pemanggil sebaiknya sudah melakukan
+    ``prefetch_related("starred_by")`` agar tidak terjadi query N+1.
+    """
+    starred_users = education.starred_by.all()
+    return {
+        "pk": str(education.id),
+        "fields": {
+            "institution": education.institution,
+            "description": education.description,
+            "started_at": education.started_at.isoformat(),
+            "ended_at": education.ended_at.isoformat() if education.ended_at else None,
+            "is_ongoing": education.is_ongoing,
+            "certificate_url": education.certificate_url or "",
+            "star_count": len(starred_users),
+            "is_starred": user.is_authenticated and user in starred_users,
+            "starred_by_names": ", ".join(u.username for u in starred_users),
+        },
+    }
+
+
 def get_education_json(request):
     institution_query = request.GET.get("institution", "").strip()
-    education = Education.objects.all()
+    education = Education.objects.prefetch_related("starred_by")
 
     if institution_query:
         education = education.filter(institution__icontains=institution_query)
 
-    # Natural key membuat starred_by berisi username, bukan id internal
-    # database pengguna.
-    education_json = serializers.serialize(
-        "json", education, use_natural_foreign_keys=True
-    )
-    return HttpResponse(education_json, content_type="application/json")
+    data = [serialize_education(edu, request.user) for edu in education]
+    return JsonResponse(data, safe=False)
 
 
 @login_required(login_url="/login/")

@@ -949,3 +949,7 @@ h1, .brand {
 .toast-test-button {
     margin-bottom: 1.5rem;
 }
+
+.state-action {
+    margin-top: 0.75rem;
+}
