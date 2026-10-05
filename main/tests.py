@@ -1,7 +1,7 @@
 import json
 
 from django.contrib.auth.models import Group, User
-from django.test import TestCase
+from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -336,3 +336,175 @@ class ExperienceAuthorizationTest(TestCase):
         self.assertEqual(self.client.get(create_url).status_code, 200)
         self.client.post(self.delete_url)
         self.assertFalse(Experience.objects.filter(pk=self.experience.pk).exists())
+
+
+class EducationAjaxTest(TestCase):
+    """Tugas 5: endpoint JSON, tambah data lewat AJAX, star tanpa reload,
+    dan pembersihan input untuk mencegah XSS."""
+
+    password = "S3cure-pass-123"
+    xss_payload = '<img src="x" onerror="alert(\'XSS!\')">'
+
+    def setUp(self):
+        self.education = Education.objects.create(
+            institution="Universitas Indonesia",
+            description="S1 Sistem Informasi",
+            started_at="2025-01-01",
+        )
+        self.regular = User.objects.create_user("sasha", password=self.password)
+        self.editor = User.objects.create_user("rian", password=self.password)
+        self.editor.groups.add(Group.objects.get(name=EDITOR_GROUP_NAME))
+        self.owner = User.objects.create_superuser("karyn", password=self.password)
+
+        self.create_url = reverse("main:create_education_ajax")
+        self.json_url = reverse("main:get_education_json")
+        self.star_url = reverse("main:toggle_star_education", args=[self.education.id])
+
+    def login_as(self, user):
+        self.client.login(username=user.username, password=self.password)
+
+    def education_data(self, **overrides):
+        data = {
+            "institution": "SMA Negeri 8",
+            "description": "IPA",
+            "started_at": "2021-07-01",
+            "ended_at": "",
+            "certificate_url": "",
+        }
+        data.update(overrides)
+        return data
+
+    def error_messages(self, response, field):
+        return [error["message"] for error in response.json()["errors"][field]]
+
+    def test_create_ajax_only_accepts_post(self):
+        self.login_as(self.owner)
+        self.assertEqual(self.client.get(self.create_url).status_code, 405)
+
+    def test_create_ajax_rejects_every_role_except_owner_with_json_403(self):
+        for user in [None, self.regular, self.editor]:
+            self.client.logout()
+            if user:
+                self.login_as(user)
+            response = self.client.post(self.create_url, self.education_data())
+            self.assertEqual(response.status_code, 403)
+            self.assertIn("pemilik portofolio", response.json()["message"])
+
+        self.assertFalse(Education.objects.filter(institution="SMA Negeri 8").exists())
+
+    def test_owner_creates_education_and_gets_201(self):
+        self.login_as(self.owner)
+        response = self.client.post(self.create_url, self.education_data())
+
+        self.assertEqual(response.status_code, 201)
+        created = Education.objects.get(pk=response.json()["pk"])
+        self.assertEqual(created.institution, "SMA Negeri 8")
+        self.assertEqual(len(self.client.get(self.json_url).json()), 2)
+
+    def test_invalid_data_returns_400_with_field_errors(self):
+        self.login_as(self.owner)
+        response = self.client.post(
+            self.create_url, self.education_data(institution="   ", started_at="")
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.error_messages(response, "institution"), ["This field is required."])
+        self.assertEqual(self.error_messages(response, "started_at"), ["This field is required."])
+
+    def test_end_date_before_start_date_is_rejected(self):
+        self.login_as(self.owner)
+        response = self.client.post(
+            self.create_url, self.education_data(ended_at="2020-01-01")
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            self.error_messages(response, "ended_at"),
+            ["Tanggal selesai tidak boleh sebelum tanggal mulai."],
+        )
+
+    def test_xss_payload_and_javascript_url_are_rejected(self):
+        self.login_as(self.owner)
+
+        response = self.client.post(self.create_url, self.education_data(institution=self.xss_payload))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            self.error_messages(response, "institution"),
+            ["Nama institusi tidak boleh hanya berisi tag HTML."],
+        )
+
+        response = self.client.post(
+            self.create_url, self.education_data(certificate_url="javascript:alert(1)")
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("certificate_url", response.json()["errors"])
+        self.assertEqual(Education.objects.count(), 1)
+
+    def test_html_tags_are_stripped_before_saving(self):
+        self.login_as(self.owner)
+        response = self.client.post(
+            self.create_url,
+            self.education_data(institution="SMA <b>Negeri</b> 8", description="IPA <script>x</script>unggulan"),
+        )
+
+        created = Education.objects.get(pk=response.json()["pk"])
+        self.assertEqual(created.institution, "SMA Negeri 8")
+        self.assertNotIn("<", created.description)
+
+    def test_create_ajax_requires_csrf_token(self):
+        client = Client(enforce_csrf_checks=True)
+        client.login(username="karyn", password=self.password)
+
+        self.assertEqual(client.post(self.create_url, self.education_data()).status_code, 403)
+
+        client.get(reverse("main:show_education"))
+        token = client.cookies["csrftoken"].value
+        response = client.post(self.create_url, self.education_data(), HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(response.status_code, 201)
+
+    def test_add_modal_is_rendered_only_for_owner(self):
+        for user, has_modal in [(None, False), (self.regular, False), (self.editor, False), (self.owner, True)]:
+            self.client.logout()
+            if user:
+                self.login_as(user)
+            response = self.client.get(reverse("main:show_education"))
+            if has_modal:
+                self.assertContains(response, 'id="add-education-modal"')
+                self.assertContains(response, 'name="institution"')
+            else:
+                self.assertNotContains(response, 'id="add-education-modal"')
+
+    def test_json_reports_star_status_for_current_user(self):
+        self.education.starred_by.add(self.regular)
+
+        anonymous = self.client.get(self.json_url).json()[0]["fields"]
+        self.login_as(self.regular)
+        regular = self.client.get(self.json_url).json()[0]["fields"]
+        self.client.logout()
+        self.login_as(self.editor)
+        editor = self.client.get(self.json_url).json()[0]["fields"]
+
+        self.assertEqual((anonymous["star_count"], anonymous["is_starred"]), (1, False))
+        self.assertEqual((regular["star_count"], regular["is_starred"]), (1, True))
+        self.assertEqual((editor["star_count"], editor["is_starred"]), (1, False))
+
+    def test_json_query_count_does_not_grow_with_rows(self):
+        for index in range(5):
+            Education.objects.create(institution=f"Sekolah {index}", started_at="2010-01-01")
+        self.login_as(self.regular)
+
+        # sesi + user + data + prefetch starred_by, berapa pun jumlah barisnya
+        with self.assertNumQueries(4):
+            self.client.get(self.json_url)
+
+    def test_ajax_star_returns_json_and_form_fallback_redirects(self):
+        self.login_as(self.regular)
+
+        response = self.client.post(self.star_url, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        fields = response.json()["fields"]
+        self.assertEqual((fields["star_count"], fields["is_starred"]), (1, True))
+        self.assertEqual(fields["starred_by_names"], "sasha")
+
+        response = self.client.post(self.star_url)
+        self.assertRedirects(response, reverse("main:show_education"))
+        self.assertEqual(self.education.starred_by.count(), 0)
