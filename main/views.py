@@ -57,6 +57,8 @@ def show_education(request):
     context = {
         "name": "Karyn Isabelle Dexter",
         "institution_query": institution_query,
+        # Form kosong untuk modal tambah data (hanya dirender untuk pemilik)
+        "form": EducationForm(),
     }
     return render(request, "education.html", context)
 
@@ -196,6 +198,36 @@ def get_education_json(request):
     return JsonResponse(data, safe=False)
 
 
+@require_POST
+def create_education_ajax(request):
+    """Endpoint AJAX untuk modal tambah riwayat pendidikan.
+
+    Membalas JSON dengan status 201 (berhasil), 400 (validasi gagal, beserta
+    pesan per field), atau 403 (bukan pemilik portofolio). Sengaja tanpa
+    @login_required: redirect ke halaman login akan diikuti fetch dan tidak
+    bisa dikenali JavaScript, sedangkan AnonymousUser juga ditolak oleh
+    can_create() dengan JSON 403.
+    """
+    if not can_create(request.user):
+        return JsonResponse(
+            {"message": "Hanya pemilik portofolio yang dapat menambahkan riwayat pendidikan."},
+            status=403,
+        )
+
+    form = EducationForm(request.POST)
+    if form.is_valid():
+        education = form.save()
+        return JsonResponse(
+            {
+                "message": "Riwayat pendidikan berhasil ditambahkan.",
+                "pk": str(education.id),
+            },
+            status=201,
+        )
+
+    return JsonResponse({"errors": form.errors.get_json_data()}, status=400)
+
+
 @login_required(login_url="/login/")
 def delete_education(request, education_id):
     if not can_delete(request.user):
@@ -223,6 +255,11 @@ def toggle_star_education(request, education_id):
             education.starred_by.remove(request.user)
         else:
             education.starred_by.add(request.user)
+
+    # Dipanggil lewat fetch (tanpa reload): kirim status star terbaru sebagai
+    # JSON. Form biasa (JavaScript nonaktif) tetap dialihkan seperti Tugas 4.
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse(serialize_education(education, request.user))
 
     return redirect("main:show_education")
 

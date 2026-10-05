@@ -10,10 +10,12 @@
                 <div class="section-header">
                     <h1>Education</h1>
                     {% if user.is_superuser %}
-                        <a href="{% url 'main:create_education' %}" class="button section-add-button">
+                        <button type="button"
+                                class="button section-add-button"
+                                popovertarget="add-education-modal">
                             <span aria-hidden="true">+</span>
                             Tambah Pendidikan
-                        </a>
+                        </button>
                     {% endif %}
                 </div>
                 {% for message in messages %}
@@ -55,6 +57,7 @@
     </main>
 
     {% if user.is_superuser %}
+        {% include "components/education_form_modal.html" %}
         {% include "components/education_delete_modal.html" %}
     {% endif %}
 
@@ -62,6 +65,8 @@
         // Konfigurasi. Hak akses di sini hanya menentukan tombol yang terlihat;
         // setiap view tetap memeriksa peran di sisi server (main/roles.py).
         const EDUCATION_ENDPOINT = "{% url 'main:get_education_json' %}";
+        const CREATE_EDUCATION_ENDPOINT = "{% url 'main:create_education_ajax' %}";
+        const IS_AUTHENTICATED = {{ user.is_authenticated|yesno:"true,false" }};
         const CAN_UPDATE = {% if user.is_superuser or is_editor %}true{% else %}false{% endif %};
         const CAN_DELETE = {{ user.is_superuser|yesno:"true,false" }};
         const CSRF_TOKEN = "{{ csrf_token }}";
@@ -235,6 +240,121 @@
                 // textContent tidak pernah menafsirkan isinya sebagai HTML
                 document.getElementById('delete-education-name').textContent = deleteButton.dataset.institution;
                 deleteModal.showPopover();
+            });
+        }
+
+        // ---------- Star tanpa reload ----------
+        // Pengunjung yang belum login tetap mengirim form biasa supaya
+        // @login_required mengarahkan mereka ke halaman login.
+        async function toggleStar(form) {
+            const button = form.querySelector('button[type="submit"]');
+            button.disabled = true;
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                // Sesi habis: server mengalihkan ke halaman login
+                if (response.redirected) {
+                    window.location.href = response.url;
+                    return;
+                }
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const item = await response.json();
+                const article = form.closest('.timeline-item');
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = buildStarHtml(item);
+                form.replaceWith(wrapper.firstElementChild);
+                article.querySelector('.button-star').focus();
+            } catch (error) {
+                console.error('Error toggling star:', error);
+                showToast('Gagal memberi star', 'Silakan coba lagi.', 'error');
+                button.disabled = false;
+            }
+        }
+
+        timeline.addEventListener('submit', function (event) {
+            const form = event.target.closest('.star-form');
+            if (!form || !IS_AUTHENTICATED) return;
+            event.preventDefault();
+            toggleStar(form);
+        });
+
+        // ---------- Tambah data lewat modal (hanya ada untuk pemilik) ----------
+        const educationForm = document.getElementById('education-form');
+
+        function clearFieldErrors() {
+            educationForm.querySelectorAll('[data-error-for]').forEach(function (element) {
+                element.textContent = '';
+                element.classList.add('hide');
+            });
+        }
+
+        // Pesan validasi dari server ditampilkan di bawah field yang bersangkutan
+        // (lewat textContent) dan dirangkum di toast beserta label field-nya.
+        function showFieldErrors(errors) {
+            const summary = [];
+            Object.entries(errors).forEach(function ([field, fieldErrors]) {
+                const messages = fieldErrors.map(error => error.message);
+                const errorElement = educationForm.querySelector(`[data-error-for="${CSS.escape(field)}"]`);
+                if (errorElement) {
+                    errorElement.textContent = messages.join(' ');
+                    errorElement.classList.remove('hide');
+                }
+                const label = educationForm.querySelector(`[data-field="${CSS.escape(field)}"] label`);
+                summary.push(label ? `${label.textContent}: ${messages.join(' ')}` : messages.join(' '));
+            });
+            return summary;
+        }
+
+        function closeEducationModal() {
+            document.getElementById('add-education-modal').hidePopover();
+        }
+
+        async function addEducation(event) {
+            event.preventDefault();
+            clearFieldErrors();
+
+            const submitButton = educationForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;  // cegah data tersimpan dua kali
+
+            try {
+                const response = await fetch(CREATE_EDUCATION_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                    body: new FormData(educationForm),
+                });
+                // Respons non-JSON (misalnya halaman 403 CSRF) tetap ditangani
+                const result = await response.json().catch(() => ({}));
+
+                if (response.ok) {
+                    educationForm.reset();
+                    closeEducationModal();
+                    showToast('Berhasil', 'Riwayat pendidikan baru berhasil ditambahkan!', 'success');
+                    fetchEducation(searchInput.value.trim());
+                } else {
+                    const messages = result.errors
+                        ? showFieldErrors(result.errors)
+                        : [result.message || `Terjadi kesalahan (status ${response.status}).`];
+                    showToast('Gagal menambahkan pendidikan', messages.join(' '), 'error', 5000);
+                }
+            } catch (error) {
+                console.error('Error adding education:', error);
+                showToast('Gagal menambahkan pendidikan', 'Tidak dapat terhubung ke server. Silakan coba lagi.', 'error');
+            } finally {
+                submitButton.disabled = false;
+            }
+        }
+
+        if (educationForm) {
+            educationForm.addEventListener('submit', addEducation);
+            // Pesan error lama dibersihkan setiap kali modal ditutup
+            document.getElementById('add-education-modal').addEventListener('toggle', function (event) {
+                if (event.newState === 'closed') clearFieldErrors();
             });
         }
 
