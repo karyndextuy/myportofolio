@@ -1,11 +1,13 @@
 import json
 
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import AnonymousUser, Group, User
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
+from rest_framework.test import APIRequestFactory
 
 from main.models import Experience, Education, Hobby
+from main.permissions import IsPortfolioOwnerOrEditorOrReadOnly
 from main.roles import EDITOR_GROUP_NAME
 
 
@@ -508,3 +510,34 @@ class EducationAjaxTest(TestCase):
         response = self.client.post(self.star_url)
         self.assertRedirects(response, reverse("main:show_education"))
         self.assertEqual(self.education.starred_by.count(), 0)
+
+
+class EditorPermissionTest(TestCase):
+    """Peran Editor (Tutorial 7) untuk bagian pilihan tugas, bukan Projects contoh."""
+
+    def setUp(self):
+        self.editor = User.objects.create_user(username="editor", password="test-password")
+        self.editor.groups.add(Group.objects.get_or_create(name="Editor")[0])
+        self.regular = User.objects.create_user(username="regular", password="test-password")
+        self.owner = User.objects.create_superuser(username="owner", password="test-password")
+
+    def allowed(self, user, method):
+        request = getattr(APIRequestFactory(), method)("/")
+        request.user = user
+        return IsPortfolioOwnerOrEditorOrReadOnly().has_permission(request, None)
+
+    def test_visitor_and_regular_user_can_only_read(self):
+        for user in (AnonymousUser(), self.regular):
+            self.assertTrue(self.allowed(user, "get"))
+            for method in ("post", "put", "patch", "delete"):
+                self.assertFalse(self.allowed(user, method))
+
+    def test_editor_can_update_but_not_create_or_delete(self):
+        for method in ("get", "put", "patch"):
+            self.assertTrue(self.allowed(self.editor, method))
+        for method in ("post", "delete"):
+            self.assertFalse(self.allowed(self.editor, method))
+
+    def test_owner_can_do_everything(self):
+        for method in ("get", "post", "put", "patch", "delete"):
+            self.assertTrue(self.allowed(self.owner, method))

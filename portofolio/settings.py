@@ -33,6 +33,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
+CSRF_TRUSTED_ORIGINS = ["https://karyn-isabelle-myportofolio.pws.cs.ui.ac.id"]
+
 PRODUCTION = os.getenv('PRODUCTION', 'False').lower() == 'true'
 
 # Application definition
@@ -45,6 +47,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'main',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
