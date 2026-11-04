@@ -265,7 +265,7 @@ def toggle_star_education(request, education_id):
 
 
 def show_projects(request):
-    # Data proyek kini diambil sendiri oleh JavaScript lewat /api/projects/,
+    # Data proyek kini diambil sendiri oleh JavaScript lewat /api/v1/projects/,
     # jadi view ini hanya merender kerangka halaman dan form untuk modal.
     title_query = request.GET.get("title", "").strip()
 

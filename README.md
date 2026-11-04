@@ -13,7 +13,7 @@ A personal portfolio website built with Django, following the MVT (Model-View-Te
 - **Profile** (`/`) - name, NPM, photo, a short bio, and the time of the visitor's last login (read from the `last_login` cookie).
 - **Education** (`/education/`) - education history as a timeline. The page loads its data with `fetch()` from `/api/education/`, searches by institution as you type (debounced), adds new entries from a modal without reloading, and has a star button that updates in place. Entries can also be edited and deleted.
 - **Experience** (`/experience/`) - organizational/committee experience as a card grid, with create/delete and a JSON endpoint (`/api/experience/`).
-- **Projects** (`/projects/`) - projects as a card grid loaded with AJAX from `/api/projects/`, with debounced search, an add-project modal, delete, and a star button.
+- **Projects** (`/projects/`) - projects as a card grid loaded with AJAX from the Django REST Framework API at `/api/v1/projects/`, with debounced search, an add-project modal, delete, and a star button.
 - **Hobbies** (`/hobbies/`) - everyday hobbies as an icon grid.
 
 Visitors can register, log in, and log out using Django's built-in authentication. Every page stays readable without an account; what a user can *change* depends on their role:
@@ -146,6 +146,24 @@ Applied the whole Tutorial 5 pattern end-to-end to the **Education** section (my
   - The modal CSS from Tutorial 5 is shared through a generic `.form-modal` class.
 - **Tests.** The old Education tests were rewritten to check the JSON instead of the HTML, and 12 new tests in `EducationAjaxTest` cover 201/400/403/405, CSRF, XSS rejection, `strip_tags`, the modal only appearing for the owner, per-user `is_starred`, the query count, and the AJAX star. That makes 39 tests in total, all passing.
 
+### Tutorial 7
+Rebuilt the Projects endpoints with Django REST Framework. The models did not change, so there are no new migrations.
+
+| Method | Endpoint | Action | Who |
+|---|---|---|---|
+| GET | `/api/v1/projects/` | List; `?title=` to search | Everyone |
+| POST | `/api/v1/projects/` | Create | Owner |
+| GET | `/api/v1/projects/<uuid>/` | Detail | Everyone |
+| PUT / PATCH | `/api/v1/projects/<uuid>/` | Update | Owner |
+| DELETE | `/api/v1/projects/<uuid>/` | Delete | Owner |
+| POST | `/api/v1/projects/<uuid>/star/` | Star / unstar | Logged-in users |
+
+- Added `main/serializers.py`, `main/permissions.py`, `main/api_views.py`, and `main/api_urls.py`. The API uses `SessionAuthentication`, and writes need the CSRF token.
+- `project.html` now uses the new JSON shape (`item.id`, `item.title`) for list, search, create, delete, and star, all without a page reload. The old endpoints and pages are still there.
+- `IsPortfolioOwnerOrEditorOrReadOnly` is ready for my own section, but it isn't attached to a view yet because Education has no DRF API so far (that comes with Tugas 6). For now it is tested directly in `EditorPermissionTest`.
+- Added `CSRF_TRUSTED_ORIGINS` for my PWS origin, which was missing.
+- `main/tests_api.py` has the tutorial's 13 tests, and `python manage.py test main` runs 55 tests in total.
+
 ## Reflection Questions
 
 ### Assignment 1
@@ -262,3 +280,59 @@ I also used it to understand concepts I wasn't sure about, such as why `serializ
   - The AI also miscounted the database queries in one test.
   - Each failure had to be checked to tell a real bug from a mistake in the test. Lesson: a red test is not automatically a broken feature, and a green test is not automatically a correct one.
 - **Known leftover.** The "Test Toast Notifikasi" button from Tutorial 5 (Step 5) is still on the Projects page. It was only meant for checking the toast and can be removed.
+
+## Tutorial 7 & Tugas 7
+
+What the AI helped with:
+
+I used ClaudeCode to understand and implement some of the methods in Tutorial 7 and apply the Django REST Framework (DRF) concepts to my existing project:
+
+installing and configuring Django REST Framework;
+
+creating serializers for converting model instances into JSON and validating input;
+
+implementing API views for listing, creating, updating, and deleting data;
+
+setting up API URL routing and understanding HTTP methods and status codes;
+
+implementing permission classes for the owner and Editor roles;
+
+handling authentication through SessionAuthentication and CSRF protection;
+
+integrating the new DRF endpoints with the existing AJAX functionality;
+
+adapting the JSON response structure used by the frontend;
+
+implementing API tests using APITestCase and APIClient.
+
+I also used it to understand concepts I was initially confused about, such as the difference between serialization and deserialization, why serializer.is_valid() must be called before .save(), why request.data is used instead of request.POST, and how authentication and permission checks work separately.
+
+Another thing I needed help understanding was how the new API response structure differs from the previous manually created JSON response in Tutorial 5, and why the JavaScript code also needed to be adjusted instead of simply changing the endpoint URL.
+
+Prompt log (my prompts, in order):
+
+“aku baru mulai tutorial 7, sebenernya DRF ini bedanya apa sama jsonresponse yang kita buat di tutorial 5? jelasin dulu konsepnya”
+
+“aku masih bingung serializer itu kerjanya gimana. bedanya serialize sama deserialize apa? terus kenapa sekarang validasi dipindah ke serializer?”
+
+“ini ProjectSerializer yang aku buat udah sesuai belum? terutama bagian validate_title sama SerializerMethodField”
+
+“kalau get_is_starred butuh request user, kenapa harus dimasukin lewat context? serializer kan udah punya object projectnya?”
+
+“lanjut ke permission, aku agak bingung bedanya authentication sama authorization. kalau user udah login berarti otomatis boleh edit juga?”
+
+“untuk Editor ini gimana cara mempertahankan permission dari tugas sebelumnya? aku mau Editor tetap bisa update tapi ga bisa create atau delete”
+
+“aku mau bikin API view untuk list sama create. kenapa sekarang pake request.data bukan request.POST? terus response dari DRF ini bedanya apa?”
+
+“kalau PUT sama PATCH bedanya apa? terus kapan harus return 200, 201, 204, 400, 403, sama 404?”
+
+“sekarang bagian AJAX, berarti struktur json yang lama udah berubah ya? tolong jelasin bagian javascript mana aja yang harus disesuaikan”
+
+“aku masih bingung CSRF di DRF ini. kalau udah pake SessionAuthentication kenapa fetch masih harus kirim X-CSRFToken?”
+
+“bagian star ini kenapa harus pake IsAuthenticated? berarti user biasa boleh star tapi ga boleh edit project kan?”
+
+“untuk API test, kenapa harus pake APITestCase dan APIClient? aku mau ngerti apa aja yang sebenarnya dicek di setiap test”
+
+“boleh cek implementasi aku satu-satu sesuai checklist tutorial 7? jangan langsung rewrite kodeku, kasih tau dulu bagian mana yang udah benar dan mana yang masih kurang”
