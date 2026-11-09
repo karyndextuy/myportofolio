@@ -11,7 +11,7 @@ Class: PBP A
 A personal portfolio website built with Django, following the MVT (Model-View-Template) pattern. Every page is backed by its own model/view/template and reachable from the navbar:
 
 - **Profile** (`/`) - name, NPM, photo, a short bio, and the time of the visitor's last login (read from the `last_login` cookie).
-- **Education** (`/education/`) - education history as a timeline. The page loads its data with `fetch()` from `/api/education/`, searches by institution as you type (debounced), adds new entries from a modal without reloading, and has a star button that updates in place. Entries can also be edited and deleted.
+- **Education** (`/education/`) - education history as a timeline. The page uses the Django REST Framework API at `/api/v1/education/` to load its data, search by institution as you type (debounced), add and edit entries from modals, star entries, and delete them, all without reloading.
 - **Experience** (`/experience/`) - organizational/committee experience as a card grid, with create/delete and a JSON endpoint (`/api/experience/`).
 - **Projects** (`/projects/`) - projects as a card grid loaded with AJAX from the Django REST Framework API at `/api/v1/projects/`, with debounced search, an add-project modal, delete, and a star button.
 - **Hobbies** (`/hobbies/`) - everyday hobbies as an icon grid.
@@ -25,7 +25,7 @@ Visitors can register, log in, and log out using Django's built-in authenticatio
 | Editor (member of the `Editor` group) | Yes | Yes | Yes | 403 Forbidden |
 | Portfolio owner (superuser) | Yes | Yes | Yes | Yes |
 
-The AJAX endpoints (`/education/add-ajax/`, `/projects/add-ajax/`) answer with JSON instead of a redirect, so a visitor who is not logged in gets a JSON `403` there rather than being sent to the login page.
+The AJAX endpoints (`/education/add-ajax/`, `/projects/add-ajax/`) answer with JSON instead of a redirect, so a visitor who is not logged in gets a JSON `403` there rather than being sent to the login page. The REST API under `/api/v1/` works the same way: writes from a visitor get `403`, with no redirect.
 
 ## Running the Project
 
@@ -160,9 +160,36 @@ Rebuilt the Projects endpoints with Django REST Framework. The models did not ch
 
 - Added `main/serializers.py`, `main/permissions.py`, `main/api_views.py`, and `main/api_urls.py`. The API uses `SessionAuthentication`, and writes need the CSRF token.
 - `project.html` now uses the new JSON shape (`item.id`, `item.title`) for list, search, create, delete, and star, all without a page reload. The old endpoints and pages are still there.
-- `IsPortfolioOwnerOrEditorOrReadOnly` is ready for my own section, but it isn't attached to a view yet because Education has no DRF API so far (that comes with Tugas 6). For now it is tested directly in `EditorPermissionTest`.
+- `IsPortfolioOwnerOrEditorOrReadOnly` was prepared for my own section and tested directly in `EditorPermissionTest`. Tugas 6 attaches it to the Education API.
 - Added `CSRF_TRUSTED_ORIGINS` for my PWS origin, which was missing.
 - `main/tests_api.py` has the tutorial's 13 tests, and `python manage.py test main` runs 55 tests in total.
+
+### Tugas 6
+Applied the Tutorial 7 pattern to the **Education** section, keeping the roles from Tugas 4. The models did not change, so there are no new migrations.
+
+| Method | Endpoint | Action | Who | Success status |
+|---|---|---|---|---|
+| GET | `/api/v1/education/` | List; `?institution=` to search | Everyone | 200 |
+| POST | `/api/v1/education/` | Create | Owner | 201 |
+| GET | `/api/v1/education/<uuid>/` | Detail | Everyone | 200 |
+| PUT / PATCH | `/api/v1/education/<uuid>/` | Update | Owner and Editor | 200 |
+| DELETE | `/api/v1/education/<uuid>/` | Delete | Owner | 204 |
+| POST | `/api/v1/education/<uuid>/star/` | Star / unstar | Logged-in users | 200 |
+
+Rejected requests return `400` (invalid data), `403` (not allowed, or missing CSRF token), or `404` (entry not found).
+
+- **Serializer.** `EducationSerializer` lists its fields explicitly, so no account data such as emails or password hashes is exposed.
+  - `star_count`, `is_starred`, and `starred_by_names` are read-only.
+  - `validate_institution` and `validate_description` remove HTML with `strip_tags`.
+  - The end date is checked against the start date. On `PATCH`, a field that wasn't sent is compared using its stored value.
+- **Permissions.** `IsPortfolioOwnerOrEditorOrReadOnly` guards list and detail: everyone can read, Editors can only update, and the owner can do everything. The star endpoint uses `IsAuthenticated` and always acts on `request.user`.
+- **Views.** `education_list`, `education_detail`, and `education_star` in `main/api_views.py` use `@api_view` with `SessionAuthentication`. The URLs are in `main/api_urls.py`.
+- **Education page.**
+  - Showing, searching, adding, starring, and deleting all go through the API without a page reload.
+  - Every write sends `X-CSRFToken`.
+  - Text from the API still goes through `escapeHtml()`, and `400`/`403` errors appear in a toast.
+- **Edit modal.** `education_form_modal.html` is now a reusable component used for both adding and editing. The **Edit** button opens a modal filled with the entry's data and saves it with `PUT`. Only Editors and the owner see the edit modal, and the API enforces the same rule.
+- **Tests.** `EducationAPITest` has 21 tests covering each role, database state after rejected requests, validation, star behaviour, the query count, and CSRF checks using `APIClient(enforce_csrf_checks=True)` with `.login()`. `python manage.py test main` now runs 77 tests in total, all passing.
 
 ## Reflection Questions
 
@@ -201,6 +228,16 @@ Rebuilt the Projects endpoints with Django REST Framework. The models did not ch
    - A failed request would not be caught by my `try/catch`, so it would surface as an unhandled rejection, and the page would never switch to the error state.
 
 3. Cross-Site Scripting (XSS) is when an attacker gets their own JavaScript to run inside my site, in other visitors' browsers. In stored XSS, the payload is saved to the database (for example, an education entry named `<img src="x" onerror="alert('XSS!')">`) and runs for everyone who views the list, including people who aren't logged in. Because the code runs on my own origin, it can read the `csrftoken` cookie and send requests as the victim (starring, or deleting entries if the victim is the owner), change the page, or show a fake login form, so CSRF protection no longer helps. Django templates are safer by default because every `{{ variable }}` is auto-escaped (`<` becomes `&lt;`), so the browser shows the data as text. With AJAX, the data arrives as JSON and my JavaScript builds HTML strings and assigns them to `innerHTML`. Django is not involved at that point, so nothing escapes the data automatically, and the browser parses any tag in it as real HTML. That is why every value has to be escaped by hand (`escapeHtml()` or `textContent`), including values inside attributes (a `"` can close an attribute early) and URLs (`javascript:` contains no special characters, so it needs `safeUrl()` plus `URLField` validation). Cleaning input on the server with `strip_tags` is a second layer that blocks the payload before it is saved, but escaping when the data is displayed is the main defence, because it also covers data that was saved earlier.
+
+### Tugas 6
+
+1. REST is an architectural style where the server exposes resources at stable URLs and clients act on them through the standard meaning of HTTP methods. Each request is stateless, responses use meaningful status codes, and the interface is uniform. Returning JSON alone isn't enough, because JSON is only a data format. An endpoint like `POST /education/delete/?id=1` that always answers `200` with `{"success": false}` returns JSON but ignores those rules. My API uses one resource URL, `/api/v1/education/<uuid>/`, where `GET` reads, `PUT`/`PATCH` update, and `DELETE` removes, with `201`, `204`, `400`, `403`, and `404` where they apply. `PUT` replaces the whole representation, so the client sends every writable field. My edit modal uses `PUT` because the form always holds the complete entry. `PATCH` sends only the fields that change, which fits a small update such as correcting just `{"description": "..."}`. In `education_detail`, `partial=request.method == "PATCH"` is what lets the serializer accept the missing fields, and a `PATCH` with only `ended_at` is still compared against the stored `started_at`.
+
+2. A serializer converts model instances into JSON-ready data and also validates incoming data before turning it back into a model instance, so one class defines both directions of the API. In Tutorial 05, `serialize_education()` built the dictionary by hand and `create_education_ajax` validated separately through `EducationForm`, so the output format and the input rules lived in different places. With `EducationSerializer`, `ModelSerializer` derives field types and limits from the model and lists the exposed fields explicitly in `Meta.fields`. It also marks computed fields such as `star_count` as read-only, so a client can't set them, returns per-field errors automatically as a `400` through `is_valid(raise_exception=True)`, and supports partial updates with `partial=True`. Custom rules go in one predictable place, such as `validate_institution`. Hand-built dictionaries would need all of this written and kept in sync for every endpoint.
+
+3. Authentication answers "who is this user?", while authorization answers "what may this user do?". In DRF, `SessionAuthentication` reads the session and sets `request.user`, then permission classes decide whether the request may continue. For example, a regular user is authenticated, but `IsPortfolioOwnerOrEditorOrReadOnly` still rejects their `PUT` with `403`. Permissions have to be checked on the server because hiding a button only changes the HTML that person receives. Anyone can skip the page and send `DELETE /api/v1/education/<uuid>/` from the browser console, curl, or Postman, so the hidden button blocks nothing. A role can also change while a page is open: if an Editor loses the role, the old Edit button is still on their screen, but the server answers `403` and the data stays unchanged. The template checks only keep the interface tidy, while the permission class is the real access control.
+
+4. With `SessionAuthentication`, the browser attaches the session cookie to requests automatically, even when another website triggers them. Without another check, a malicious page could send a write to my API using a logged-in visitor's session. That is why DRF enforces CSRF for session-authenticated requests. The attacker can't read the token from my site, so they can't put it in the `X-CSRFToken` header that my `fetch` calls send. A test using `force_authenticate` isn't enough to prove this works, because it skips the session authentication step entirely and DRF's CSRF check lives inside that step. The request succeeds whether a token exists or not, so such a test would stay green even if CSRF protection were broken. My tests use `APIClient(enforce_csrf_checks=True)` with a real `.login()` to follow the same path as a browser: the write is rejected with `403` without a token and succeeds with a valid one.
 
 ## AI Usage
 
@@ -336,3 +373,23 @@ Prompt log (my prompts, in order):
 “untuk API test, kenapa harus pake APITestCase dan APIClient? aku mau ngerti apa aja yang sebenarnya dicek di setiap test”
 
 “boleh cek implementasi aku satu-satu sesuai checklist tutorial 7? jangan langsung rewrite kodeku, kasih tau dulu bagian mana yang udah benar dan mana yang masih kurang”
+
+## AI Usage for Tugas 6
+
+**Tool and strategy:** I used Claude Code in VS Code. I gave it the Tugas 6 PDF and asked it to implement the requirements on my Education section in five stages, so each stage could be tested and committed separately. I ran the commits myself.
+
+**What the AI helped with:**
+- writing `EducationSerializer`, the Education API views and URLs, and attaching the permission class;
+- moving the Education page's JavaScript from the old endpoints to the API;
+- building the edit modal that saves with `PUT`;
+- writing `EducationAPITest`, and running browser checks with Selenium for each role;
+- drafting this README section, including the Tugas 6 reflection answers, based on my Education code.
+
+
+**Limitations of the AI and what had to be corrected:**
+- **The assignment hint didn't fit my database.** `Group.objects.create(name="Editor")` fails on the unique constraint, because migration `0006` already creates that group. The tests use `get_or_create` instead.
+- **Following the tutorial's star count would have caused extra queries.** `.count()` on a many-to-many manager runs a new query for every row, even after `prefetch_related`. `EducationSerializer` uses `len(obj.starred_by.all())`, and a test checks that the query count doesn't grow. `ProjectSerializer` still uses the tutorial's `.count()`, so that is a known leftover.
+- **Form behaviour didn't carry over to the API.** DRF rejects `""` for a date field, so the page has to send `null` for an empty date or certificate URL.
+- **The API change broke an older test.** The Education skeleton test still expected the old endpoint and had to be updated to the new URL.
+- **The AI ignored my workflow once.** It ran a commit by itself even though I do my own commits. I stopped it, the commit was undone with `git reset --mixed HEAD~1` before anything was pushed, and from then on it only told me when a stage was ready.
+- **Known leftover.** The old non-API Education endpoints still exist, with the same role checks, although the page no longer uses them for its main actions.
