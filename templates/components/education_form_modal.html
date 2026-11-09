@@ -1,32 +1,28 @@
-<div id="add-education-modal"
+{# Dipakai untuk modal tambah dan modal ubah. Parameter include: modal_id, form_id, #}
+{# modal_title, submit_label, close_label, dan form yang akan dirender. #}
+<div id="{{ modal_id }}"
      class="form-modal"
      popover="auto"
      role="dialog"
      aria-modal="true"
-     aria-labelledby="add-education-modal-title">
+     aria-labelledby="{{ modal_id }}-title">
     <button type="button"
             class="form-modal__backdrop"
-            popovertarget="add-education-modal"
+            popovertarget="{{ modal_id }}"
             popovertargetaction="hide"
-            aria-label="Tutup form tambah pendidikan"></button>
+            aria-label="{{ close_label }}"></button>
 
     <div class="form-modal__content">
         <button type="button"
                 class="form-modal__close"
-                popovertarget="add-education-modal"
+                popovertarget="{{ modal_id }}"
                 popovertargetaction="hide"
-                aria-label="Tutup form tambah pendidikan">&times;</button>
+                aria-label="{{ close_label }}">&times;</button>
 
-        <h2 id="add-education-modal-title">Tambah Riwayat Pendidikan</h2>
-        {# action tetap menunjuk view lama sebagai cadangan jika JavaScript nonaktif. #}
-        {# novalidate: validasi dilakukan ModelForm di server, pesannya ditampilkan #}
+        <h2 id="{{ modal_id }}-title">{{ modal_title }}</h2>
+        {# novalidate: validasi dilakukan serializer di server, pesannya ditampilkan #}
         {# lewat toast dan di bawah tiap field, sehingga aturannya hanya ada di satu tempat. #}
-        <form id="education-form"
-              method="post"
-              action="{% url 'main:create_education' %}"
-              class="data-form"
-              novalidate>
-            {% csrf_token %}
+        <form id="{{ form_id }}" class="data-form" novalidate>
             {% for field in form %}
                 <div class="form-group" data-field="{{ field.name }}">
                     <label for="{{ field.id_for_label }}">{{ field.label }}</label>
@@ -38,9 +34,9 @@
             <div class="form-modal__actions">
                 <button type="button"
                         class="button button-secondary"
-                        popovertarget="add-education-modal"
+                        popovertarget="{{ modal_id }}"
                         popovertargetaction="hide">Batal</button>
-                <button type="submit" class="button">Tambah Pendidikan</button>
+                <button type="submit" class="button">{{ submit_label }}</button>
             </div>
         </form>
     </div>

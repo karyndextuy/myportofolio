@@ -51,14 +51,16 @@ def show_experience(request):
 
 def show_education(request):
     # Halaman hanya berisi kerangka; data riwayat pendidikan diambil oleh
-    # JavaScript dari /api/education/ (lihat get_education_json).
+    # JavaScript dari /api/v1/education/ (lihat main/api_views.py).
     institution_query = request.GET.get("institution", "").strip()
 
     context = {
         "name": "Karyn Isabelle Dexter",
         "institution_query": institution_query,
-        # Form kosong untuk modal tambah data (hanya dirender untuk pemilik)
+        # Form kosong untuk modal tambah (pemilik) dan modal ubah (Editor dan
+        # pemilik). auto_id berbeda agar id input tidak kembar dalam satu halaman.
         "form": EducationForm(),
+        "edit_form": EducationForm(auto_id="edit_%s"),
     }
     return render(request, "education.html", context)
 
