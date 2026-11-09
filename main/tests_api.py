@@ -370,3 +370,13 @@ class EducationAPITest(APITestCase):
         token = client.cookies["csrftoken"].value
         response = client.post(self.list_url, self.payload, format="json", HTTP_X_CSRFTOKEN=token)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_education_page_sets_csrf_cookie_for_regular_user(self):
+        client = APIClient(enforce_csrf_checks=True)
+        client.login(username="regular", password="test-password")
+        response = client.get(reverse("main:show_education"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        token = client.cookies["csrftoken"].value
+        response = client.post(self.star_url, HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_starred"])

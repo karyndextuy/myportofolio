@@ -1,6 +1,5 @@
-{# Satu modal konfirmasi untuk semua entri. Kartu yang dirender JavaScript #}
-{# hanya menyimpan URL hapus di data-delete-url; skrip education.html #}
-{# mengisi action form dan nama institusi sebelum modal dibuka. #}
+{# Satu modal konfirmasi untuk semua entri. Skrip education.html mengisi id #}
+{# dan nama institusi sebelum modal dibuka, lalu mengirim DELETE ke API. #}
 <div id="delete-education-modal"
      class="delete-modal"
      popover="auto"
@@ -28,8 +27,7 @@
                     class="button button-secondary"
                     popovertarget="delete-education-modal"
                     popovertargetaction="hide">Batal</button>
-            <form id="delete-education-form" method="post" action="">
-                {% csrf_token %}
+            <form id="delete-education-form">
                 <button type="submit" class="button button-danger">Ya, Hapus</button>
             </form>
         </div>

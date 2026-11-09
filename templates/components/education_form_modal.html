@@ -18,15 +18,9 @@
                 aria-label="Tutup form tambah pendidikan">&times;</button>
 
         <h2 id="add-education-modal-title">Tambah Riwayat Pendidikan</h2>
-        {# action tetap menunjuk view lama sebagai cadangan jika JavaScript nonaktif. #}
-        {# novalidate: validasi dilakukan ModelForm di server, pesannya ditampilkan #}
+        {# novalidate: validasi dilakukan serializer di server, pesannya ditampilkan #}
         {# lewat toast dan di bawah tiap field, sehingga aturannya hanya ada di satu tempat. #}
-        <form id="education-form"
-              method="post"
-              action="{% url 'main:create_education' %}"
-              class="data-form"
-              novalidate>
-            {% csrf_token %}
+        <form id="education-form" class="data-form" novalidate>
             {% for field in form %}
                 <div class="form-group" data-field="{{ field.name }}">
                     <label for="{{ field.id_for_label }}">{{ field.label }}</label>

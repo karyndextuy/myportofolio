@@ -61,21 +61,25 @@
         {% include "components/education_delete_modal.html" %}
     {% endif %}
 
+    {# Menyetel cookie csrftoken untuk semua akun, termasuk yang tidak melihat form modal. #}
+    {% csrf_token %}
     <script>
         // Konfigurasi. Hak akses di sini hanya menentukan tombol yang terlihat;
-        // setiap view tetap memeriksa peran di sisi server (main/roles.py).
-        const EDUCATION_ENDPOINT = "{% url 'main:get_education_json' %}";
-        const CREATE_EDUCATION_ENDPOINT = "{% url 'main:create_education_ajax' %}";
+        // keputusan sebenarnya ada di permission class API (main/permissions.py).
+        const EDUCATION_ENDPOINT = "{% url 'api:education-list' %}";
         const IS_AUTHENTICATED = {{ user.is_authenticated|yesno:"true,false" }};
         const CAN_UPDATE = {% if user.is_superuser or is_editor %}true{% else %}false{% endif %};
         const CAN_DELETE = {{ user.is_superuser|yesno:"true,false" }};
-        const CSRF_TOKEN = "{{ csrf_token }}";
-        // UUID dummy diganti dengan pk asli dari data JSON
+        const LOGIN_URL = "{% url 'main:login' %}?next={{ request.path|urlencode }}";
+        // UUID dummy diganti dengan id asli dari data JSON
         const PLACEHOLDER_ID = "00000000-0000-0000-0000-000000000000";
+        const DETAIL_URL_TEMPLATE = "{% url 'api:education-detail' '00000000-0000-0000-0000-000000000000' %}";
+        const STAR_URL_TEMPLATE = "{% url 'api:education-star' '00000000-0000-0000-0000-000000000000' %}";
         const UPDATE_URL_TEMPLATE = "{% url 'main:update_education' '00000000-0000-0000-0000-000000000000' %}";
-        const DELETE_URL_TEMPLATE = "{% url 'main:delete_education' '00000000-0000-0000-0000-000000000000' %}";
-        const STAR_URL_TEMPLATE = "{% url 'main:toggle_star_education' '00000000-0000-0000-0000-000000000000' %}";
         const SEARCH_DEBOUNCE_DELAY = 300;
+        const EDUCATION_FIELDS = ['institution', 'description', 'started_at', 'ended_at', 'certificate_url'];
+        // DRF menolak "" sebagai tanggal, jadi input kosong dikirim sebagai null
+        const NULLABLE_FIELDS = ['started_at', 'ended_at', 'certificate_url'];
         // escapeHtml(), safeUrl(), dan getCookie() berasal dari static/js/utils.js
 
         // Elemen DOM
@@ -103,33 +107,32 @@
             return template.replace(PLACEHOLDER_ID, encodeURIComponent(id));
         }
 
-        // Tombol star dibungkus <form> POST ber-CSRF, sama seperti Tugas 4
-        function buildStarHtml(item) {
-            const edu = item.fields;
+        // Pengunjung tanpa login mendapat tautan ke halaman login, bukan tombol
+        function buildStarHtml(edu) {
             const starTitle = edu.star_count > 0
                 ? `Dibintangi oleh ${edu.starred_by_names}`
                 : 'Jadilah yang pertama memberi star';
+            const content = `
+                <span aria-hidden="true">★</span>
+                ${edu.is_starred ? 'Unstar' : 'Star'}
+                <span class="star-count">${Number(edu.star_count)}</span>`;
+            if (!IS_AUTHENTICATED) {
+                return `<a href="${escapeHtml(LOGIN_URL)}" class="button button-star" title="${escapeHtml(starTitle)}">${content}</a>`;
+            }
             return `
-                <form method="post" action="${urlFor(STAR_URL_TEMPLATE, item.pk)}" class="star-form">
-                    <input type="hidden" name="csrfmiddlewaretoken" value="${escapeHtml(CSRF_TOKEN)}">
-                    <button type="submit"
-                            class="button button-star${edu.is_starred ? ' is-starred' : ''}"
-                            aria-pressed="${edu.is_starred}"
-                            title="${escapeHtml(starTitle)}">
-                        <span aria-hidden="true">★</span>
-                        ${edu.is_starred ? 'Unstar' : 'Star'}
-                        <span class="star-count">${Number(edu.star_count)}</span>
-                    </button>
-                </form>`;
+                <button type="button"
+                        class="button button-star${edu.is_starred ? ' is-starred' : ''}"
+                        data-action="star"
+                        data-id="${escapeHtml(edu.id)}"
+                        aria-pressed="${Boolean(edu.is_starred)}"
+                        title="${escapeHtml(starTitle)}">${content}</button>`;
         }
 
         // Membuat satu entri timeline. Setiap nilai teks dari JSON di-escape
         // sebelum masuk ke innerHTML agar tidak dieksekusi sebagai HTML (XSS).
-        function buildEducationElement(item) {
-            const edu = item.fields;
+        function buildEducationElement(edu) {
             const article = document.createElement('article');
             article.className = 'timeline-item';
-            article.dataset.id = item.pk;
 
             const startYear = edu.started_at.slice(0, 4);
             const endYear = edu.is_ongoing ? 'Sekarang' : edu.ended_at.slice(0, 4);
@@ -140,12 +143,13 @@
                    </p>`
                 : '';
             const editHtml = CAN_UPDATE
-                ? `<a href="${urlFor(UPDATE_URL_TEMPLATE, item.pk)}" class="button button-secondary">Edit</a>`
+                ? `<a href="${urlFor(UPDATE_URL_TEMPLATE, edu.id)}" class="button button-secondary">Edit</a>`
                 : '';
             const deleteHtml = CAN_DELETE
                 ? `<button type="button"
                            class="button button-danger"
-                           data-delete-url="${urlFor(DELETE_URL_TEMPLATE, item.pk)}"
+                           data-action="delete"
+                           data-id="${escapeHtml(edu.id)}"
                            data-institution="${escapeHtml(edu.institution)}">Hapus</button>`
                 : '';
 
@@ -156,7 +160,7 @@
                     <p>${escapeHtml(edu.description)}</p>
                     ${certificateHtml}
                     <div class="item-actions">
-                        ${buildStarHtml(item)}
+                        ${buildStarHtml(edu)}
                         ${editHtml}
                         ${deleteHtml}
                     </div>
@@ -164,7 +168,7 @@
             return article;
         }
 
-        // Mengambil data dari endpoint JSON lalu merender ulang timeline
+        // Mengambil data dari API lalu merender ulang timeline
         async function fetchEducation(searchQuery = '') {
             // Batalkan permintaan lama agar hasil pencarian lama tidak menimpa yang baru
             if (educationAbortController) educationAbortController.abort();
@@ -173,9 +177,9 @@
             try {
                 displayPageSection({ showLoading: true });
 
-                const url = searchQuery
-                    ? `${EDUCATION_ENDPOINT}?institution=${encodeURIComponent(searchQuery)}`
-                    : EDUCATION_ENDPOINT;
+                const url = new URL(EDUCATION_ENDPOINT, window.location.origin);
+                if (searchQuery) url.searchParams.set('institution', searchQuery);
+
                 const response = await fetch(url, {
                     headers: { 'Accept': 'application/json' },
                     signal: educationAbortController.signal,
@@ -198,6 +202,10 @@
                 console.error('Error loading education:', error);
                 displayPageSection({ showError: true });
             }
+        }
+
+        function refreshEducation() {
+            return fetchEducation(searchInput.value.trim());
         }
 
         // Pencarian: simpan kata kunci di URL (?institution=) supaya tetap ada
@@ -229,122 +237,152 @@
 
         retryButton.addEventListener('click', searchEducation);
 
-        // Event delegation: satu listener untuk semua tombol Hapus, termasuk
-        // yang baru dirender setelah pencarian. Modal hanya ada untuk pemilik.
-        const deleteModal = document.getElementById('delete-education-modal');
-        if (deleteModal) {
-            timeline.addEventListener('click', function (event) {
-                const deleteButton = event.target.closest('[data-delete-url]');
-                if (!deleteButton) return;
-                document.getElementById('delete-education-form').action = deleteButton.dataset.deleteUrl;
-                // textContent tidak pernah menafsirkan isinya sebagai HTML
-                document.getElementById('delete-education-name').textContent = deleteButton.dataset.institution;
-                deleteModal.showPopover();
+        // ---------- Menulis ke API ----------
+        // Error serializer berbentuk {"field": ["pesan"]}, error lain {"detail": "pesan"}
+        function apiErrorMessage(data, status) {
+            const messages = Object.values(data).flat().filter(value => typeof value === 'string');
+            return messages.join(' ') || `Terjadi kesalahan (status ${status}).`;
+        }
+
+        // Satu pintu untuk semua POST/PUT/DELETE: JSON, token CSRF, dan error.
+        // Error dari API membawa properti data agar bisa dipetakan ke tiap field.
+        async function writeEducation(url, method, payload) {
+            const response = await fetch(url, {
+                method,
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: payload === undefined ? undefined : JSON.stringify(payload),
             });
+            // 204 No Content tidak memiliki body, jadi .json() tidak boleh dipanggil
+            if (response.status === 204) return null;
+            // Respons non-JSON tetap ditangani lewat pesan berisi status HTTP
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw Object.assign(new Error(apiErrorMessage(data, response.status)), { data });
+            }
+            return data;
+        }
+
+        // fetch hanya gagal tanpa data respons jika server tidak dapat dihubungi
+        function describeError(error) {
+            return error.data ? error.message : 'Tidak dapat terhubung ke server. Silakan coba lagi.';
         }
 
         // ---------- Star tanpa reload ----------
-        // Pengunjung yang belum login tetap mengirim form biasa supaya
-        // @login_required mengarahkan mereka ke halaman login.
-        async function toggleStar(form) {
-            const button = form.querySelector('button[type="submit"]');
+        async function toggleStar(button) {
             button.disabled = true;
             try {
-                const response = await fetch(form.action, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCookie('csrftoken'),
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                });
-                // Sesi habis: server mengalihkan ke halaman login
-                if (response.redirected) {
-                    window.location.href = response.url;
-                    return;
-                }
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-                const item = await response.json();
-                const article = form.closest('.timeline-item');
+                const edu = await writeEducation(urlFor(STAR_URL_TEMPLATE, button.dataset.id), 'POST');
                 const wrapper = document.createElement('div');
-                wrapper.innerHTML = buildStarHtml(item);
-                form.replaceWith(wrapper.firstElementChild);
-                article.querySelector('.button-star').focus();
+                wrapper.innerHTML = buildStarHtml(edu);
+                const newButton = wrapper.firstElementChild;
+                button.replaceWith(newButton);
+                newButton.focus();
             } catch (error) {
                 console.error('Error toggling star:', error);
-                showToast('Gagal memberi star', 'Silakan coba lagi.', 'error');
+                showToast('Gagal memberi star', describeError(error), 'error');
                 button.disabled = false;
             }
         }
 
-        timeline.addEventListener('submit', function (event) {
-            const form = event.target.closest('.star-form');
-            if (!form || !IS_AUTHENTICATED) return;
+        // ---------- Hapus lewat modal konfirmasi (hanya ada untuk pemilik) ----------
+        const deleteModal = document.getElementById('delete-education-modal');
+        const deleteForm = document.getElementById('delete-education-form');
+
+        function openDeleteModal(button) {
+            deleteForm.dataset.id = button.dataset.id;
+            // textContent tidak pernah menafsirkan isinya sebagai HTML
+            document.getElementById('delete-education-name').textContent = button.dataset.institution;
+            deleteModal.showPopover();
+        }
+
+        async function deleteEducation(event) {
             event.preventDefault();
-            toggleStar(form);
+            const submitButton = deleteForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            try {
+                await writeEducation(urlFor(DETAIL_URL_TEMPLATE, deleteForm.dataset.id), 'DELETE');
+                deleteModal.hidePopover();
+                showToast('Berhasil', 'Riwayat pendidikan berhasil dihapus.', 'success');
+                refreshEducation();
+            } catch (error) {
+                console.error('Error deleting education:', error);
+                showToast('Gagal menghapus pendidikan', describeError(error), 'error', 5000);
+            } finally {
+                submitButton.disabled = false;
+            }
+        }
+
+        if (deleteForm) deleteForm.addEventListener('submit', deleteEducation);
+
+        // Event delegation: satu listener untuk semua tombol, termasuk tombol
+        // baru yang muncul setiap kali timeline dirender ulang.
+        timeline.addEventListener('click', function (event) {
+            const button = event.target.closest('button[data-action]');
+            if (!button || button.disabled) return;
+            if (button.dataset.action === 'star') toggleStar(button);
+            if (button.dataset.action === 'delete') openDeleteModal(button);
         });
 
-        // ---------- Tambah data lewat modal (hanya ada untuk pemilik) ----------
-        const educationForm = document.getElementById('education-form');
-
-        function clearFieldErrors() {
-            educationForm.querySelectorAll('[data-error-for]').forEach(function (element) {
+        // ---------- Form modal ----------
+        function clearFieldErrors(form) {
+            form.querySelectorAll('[data-error-for]').forEach(function (element) {
                 element.textContent = '';
                 element.classList.add('hide');
             });
         }
 
-        // Pesan validasi dari server ditampilkan di bawah field yang bersangkutan
+        // Pesan validasi API ditampilkan di bawah field yang bersangkutan
         // (lewat textContent) dan dirangkum di toast beserta label field-nya.
-        function showFieldErrors(errors) {
-            const summary = [];
-            Object.entries(errors).forEach(function ([field, fieldErrors]) {
-                const messages = fieldErrors.map(error => error.message);
-                const errorElement = educationForm.querySelector(`[data-error-for="${CSS.escape(field)}"]`);
+        function showFieldErrors(form, errors) {
+            return Object.entries(errors).map(function ([field, fieldErrors]) {
+                const message = [fieldErrors].flat().join(' ');
+                const errorElement = form.querySelector(`[data-error-for="${CSS.escape(field)}"]`);
                 if (errorElement) {
-                    errorElement.textContent = messages.join(' ');
+                    errorElement.textContent = message;
                     errorElement.classList.remove('hide');
                 }
-                const label = educationForm.querySelector(`[data-field="${CSS.escape(field)}"] label`);
-                summary.push(label ? `${label.textContent}: ${messages.join(' ')}` : messages.join(' '));
+                const label = form.querySelector(`[data-field="${CSS.escape(field)}"] label`);
+                return label ? `${label.textContent}: ${message}` : message;
             });
-            return summary;
         }
 
-        function closeEducationModal() {
-            document.getElementById('add-education-modal').hidePopover();
+        function reportFormError(form, title, error) {
+            const summary = error.data ? showFieldErrors(form, error.data) : [];
+            showToast(title, summary.join(' ') || describeError(error), 'error', 5000);
         }
+
+        function readEducationPayload(form) {
+            const fields = new FormData(form);
+            return Object.fromEntries(EDUCATION_FIELDS.map(function (name) {
+                const value = fields.get(name);
+                return [name, NULLABLE_FIELDS.includes(name) && value === '' ? null : value];
+            }));
+        }
+
+        // ---------- Tambah data (modal hanya ada untuk pemilik) ----------
+        const educationForm = document.getElementById('education-form');
+        const addModal = document.getElementById('add-education-modal');
 
         async function addEducation(event) {
             event.preventDefault();
-            clearFieldErrors();
+            clearFieldErrors(educationForm);
 
             const submitButton = educationForm.querySelector('button[type="submit"]');
             submitButton.disabled = true;  // cegah data tersimpan dua kali
 
             try {
-                const response = await fetch(CREATE_EDUCATION_ENDPOINT, {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': getCookie('csrftoken') },
-                    body: new FormData(educationForm),
-                });
-                // Respons non-JSON (misalnya halaman 403 CSRF) tetap ditangani
-                const result = await response.json().catch(() => ({}));
-
-                if (response.ok) {
-                    educationForm.reset();
-                    closeEducationModal();
-                    showToast('Berhasil', 'Riwayat pendidikan baru berhasil ditambahkan!', 'success');
-                    fetchEducation(searchInput.value.trim());
-                } else {
-                    const messages = result.errors
-                        ? showFieldErrors(result.errors)
-                        : [result.message || `Terjadi kesalahan (status ${response.status}).`];
-                    showToast('Gagal menambahkan pendidikan', messages.join(' '), 'error', 5000);
-                }
+                await writeEducation(EDUCATION_ENDPOINT, 'POST', readEducationPayload(educationForm));
+                educationForm.reset();
+                addModal.hidePopover();
+                showToast('Berhasil', 'Riwayat pendidikan baru berhasil ditambahkan!', 'success');
+                refreshEducation();
             } catch (error) {
                 console.error('Error adding education:', error);
-                showToast('Gagal menambahkan pendidikan', 'Tidak dapat terhubung ke server. Silakan coba lagi.', 'error');
+                reportFormError(educationForm, 'Gagal menambahkan pendidikan', error);
             } finally {
                 submitButton.disabled = false;
             }
@@ -353,12 +391,12 @@
         if (educationForm) {
             educationForm.addEventListener('submit', addEducation);
             // Pesan error lama dibersihkan setiap kali modal ditutup
-            document.getElementById('add-education-modal').addEventListener('toggle', function (event) {
-                if (event.newState === 'closed') clearFieldErrors();
+            addModal.addEventListener('toggle', function (event) {
+                if (event.newState === 'closed') clearFieldErrors(educationForm);
             });
         }
 
         // Start
-        fetchEducation(searchInput.value.trim());
+        refreshEducation();
     </script>
 {% endblock content %}

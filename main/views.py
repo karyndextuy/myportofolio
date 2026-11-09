@@ -51,7 +51,7 @@ def show_experience(request):
 
 def show_education(request):
     # Halaman hanya berisi kerangka; data riwayat pendidikan diambil oleh
-    # JavaScript dari /api/education/ (lihat get_education_json).
+    # JavaScript dari /api/v1/education/ (lihat main/api_views.py).
     institution_query = request.GET.get("institution", "").strip()
 
     context = {

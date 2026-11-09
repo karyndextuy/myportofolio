@@ -86,7 +86,7 @@ class EducationTest(TestCase):
         self.assertContains(response, 'id="education-timeline"')
         self.assertContains(response, 'id="education-loading"')
         self.assertContains(response, 'id="education-error"')
-        self.assertContains(response, reverse("main:get_education_json"))
+        self.assertContains(response, reverse("api:education-list"))
 
     def test_education_json_shows_data(self):
         response = self.client.get(reverse("main:get_education_json"))
