@@ -14,6 +14,10 @@ class IsPortfolioOwnerOrReadOnly(BasePermission):
 
 
 class IsPortfolioOwnerOrEditorOrReadOnly(BasePermission):
+    """Keempat peran Tugas 4: lihat aturan lengkapnya di ``main.roles``."""
+
+    message = "Anda tidak memiliki izin untuk melakukan tindakan ini."
+
     def has_permission(self, request, view):
         if request.method in SAFE_METHODS:
             return True
