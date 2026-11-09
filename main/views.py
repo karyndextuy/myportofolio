@@ -57,8 +57,10 @@ def show_education(request):
     context = {
         "name": "Karyn Isabelle Dexter",
         "institution_query": institution_query,
-        # Form kosong untuk modal tambah data (hanya dirender untuk pemilik)
+        # Form kosong untuk modal tambah (pemilik) dan modal ubah (Editor dan
+        # pemilik). auto_id berbeda agar id input tidak kembar dalam satu halaman.
         "form": EducationForm(),
+        "edit_form": EducationForm(auto_id="edit_%s"),
     }
     return render(request, "education.html", context)
 

@@ -476,6 +476,18 @@ class EducationAjaxTest(TestCase):
             else:
                 self.assertNotContains(response, 'id="add-education-modal"')
 
+    def test_edit_modal_is_rendered_only_for_editor_and_owner(self):
+        for user, has_modal in [(None, False), (self.regular, False), (self.editor, True), (self.owner, True)]:
+            self.client.logout()
+            if user:
+                self.login_as(user)
+            response = self.client.get(reverse("main:show_education"))
+            if has_modal:
+                self.assertContains(response, 'id="edit-education-modal"')
+                self.assertContains(response, 'id="edit_institution"')
+            else:
+                self.assertNotContains(response, 'id="edit-education-modal"')
+
     def test_json_reports_star_status_for_current_user(self):
         self.education.starred_by.add(self.regular)
 

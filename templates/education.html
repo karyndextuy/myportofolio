@@ -57,8 +57,11 @@
     </main>
 
     {% if user.is_superuser %}
-        {% include "components/education_form_modal.html" %}
+        {% include "components/education_form_modal.html" with modal_id="add-education-modal" form_id="education-form" modal_title="Tambah Riwayat Pendidikan" submit_label="Tambah Pendidikan" close_label="Tutup form tambah pendidikan" %}
         {% include "components/education_delete_modal.html" %}
+    {% endif %}
+    {% if user.is_superuser or is_editor %}
+        {% include "components/education_form_modal.html" with form=edit_form modal_id="edit-education-modal" form_id="edit-education-form" modal_title="Ubah Riwayat Pendidikan" submit_label="Simpan Perubahan" close_label="Tutup form ubah pendidikan" %}
     {% endif %}
 
     {# Menyetel cookie csrftoken untuk semua akun, termasuk yang tidak melihat form modal. #}
@@ -75,7 +78,6 @@
         const PLACEHOLDER_ID = "00000000-0000-0000-0000-000000000000";
         const DETAIL_URL_TEMPLATE = "{% url 'api:education-detail' '00000000-0000-0000-0000-000000000000' %}";
         const STAR_URL_TEMPLATE = "{% url 'api:education-star' '00000000-0000-0000-0000-000000000000' %}";
-        const UPDATE_URL_TEMPLATE = "{% url 'main:update_education' '00000000-0000-0000-0000-000000000000' %}";
         const SEARCH_DEBOUNCE_DELAY = 300;
         const EDUCATION_FIELDS = ['institution', 'description', 'started_at', 'ended_at', 'certificate_url'];
         // DRF menolak "" sebagai tanggal, jadi input kosong dikirim sebagai null
@@ -94,6 +96,8 @@
 
         let educationAbortController;
         let searchDebounceTimer;
+        // Data terakhir dari API, dipakai untuk mengisi modal ubah
+        const educationById = new Map();
 
         // Menampilkan tepat satu bagian halaman: loading, error, empty, atau timeline
         function displayPageSection({ showLoading = false, showError = false, showEmpty = false, showTimeline = false }) {
@@ -143,7 +147,10 @@
                    </p>`
                 : '';
             const editHtml = CAN_UPDATE
-                ? `<a href="${urlFor(UPDATE_URL_TEMPLATE, edu.id)}" class="button button-secondary">Edit</a>`
+                ? `<button type="button"
+                           class="button button-secondary"
+                           data-action="edit"
+                           data-id="${escapeHtml(edu.id)}">Edit</button>`
                 : '';
             const deleteHtml = CAN_DELETE
                 ? `<button type="button"
@@ -187,6 +194,8 @@
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
                 const educationData = await response.json();
+                educationById.clear();
+                educationData.forEach(edu => educationById.set(edu.id, edu));
 
                 if (educationData.length === 0) {
                     emptyMessage.textContent = searchQuery
@@ -325,6 +334,7 @@
             if (!button || button.disabled) return;
             if (button.dataset.action === 'star') toggleStar(button);
             if (button.dataset.action === 'delete') openDeleteModal(button);
+            if (button.dataset.action === 'edit') openEditModal(button);
         });
 
         // ---------- Form modal ----------
@@ -388,13 +398,52 @@
             }
         }
 
-        if (educationForm) {
-            educationForm.addEventListener('submit', addEducation);
-            // Pesan error lama dibersihkan setiap kali modal ditutup
-            addModal.addEventListener('toggle', function (event) {
-                if (event.newState === 'closed') clearFieldErrors(educationForm);
+        // ---------- Ubah data (modal ada untuk Editor dan pemilik) ----------
+        const editForm = document.getElementById('edit-education-form');
+        const editModal = document.getElementById('edit-education-modal');
+
+        function openEditModal(button) {
+            const edu = educationById.get(button.dataset.id);
+            editForm.dataset.id = edu.id;
+            EDUCATION_FIELDS.forEach(function (name) {
+                editForm.elements[name].value = edu[name] ?? '';
+            });
+            editModal.showPopover();
+        }
+
+        // Form memuat seluruh field yang bisa diubah, jadi yang dikirim adalah
+        // representasi lengkap penggantinya: PUT, bukan PATCH.
+        async function updateEducation(event) {
+            event.preventDefault();
+            clearFieldErrors(editForm);
+
+            const submitButton = editForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+
+            try {
+                await writeEducation(urlFor(DETAIL_URL_TEMPLATE, editForm.dataset.id), 'PUT', readEducationPayload(editForm));
+                editModal.hidePopover();
+                showToast('Berhasil', 'Riwayat pendidikan berhasil diperbarui!', 'success');
+                refreshEducation();
+            } catch (error) {
+                console.error('Error updating education:', error);
+                reportFormError(editForm, 'Gagal mengubah pendidikan', error);
+            } finally {
+                submitButton.disabled = false;
+            }
+        }
+
+        // Pesan error lama dibersihkan setiap kali modal ditutup
+        function setupFormModal(form, modal, onSubmit) {
+            if (!form) return;
+            form.addEventListener('submit', onSubmit);
+            modal.addEventListener('toggle', function (event) {
+                if (event.newState === 'closed') clearFieldErrors(form);
             });
         }
+
+        setupFormModal(educationForm, addModal, addEducation);
+        setupFormModal(editForm, editModal, updateEducation);
 
         // Start
         refreshEducation();
